@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DataResell Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#0a0f1e}
+::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:3px}
+.syne{font-family:'Syne',sans-serif}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(0,229,255,.15)}50%{box-shadow:0 0 40px rgba(0,229,255,.35)}}
+.fade-up{animation:fadeUp .5s ease forwards}
+.fa1{animation-delay:.05s;opacity:0}.fa2{animation-delay:.15s;opacity:0}.fa3{animation-delay:.25s;opacity:0}
+.fa4{animation-delay:.35s;opacity:0}.fa5{animation-delay:.45s;opacity:0}.fa6{animation-delay:.55s;opacity:0}
+.spinner{width:22px;height:22px;border:2px solid rgba(255,255,255,.2);border-top-color:#00e5ff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle}
+@media(min-width:700px){.sidebar-desktop{display:flex!important}.mobile-nav{display:none!important}}
+@media(max-width:699px){.sidebar-desktop{display:none!important}}
+select option{background:#111827;color:#e8edf7}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+const SUPABASE_URL = "https://lbflhbogfhtnjjnxjntb.supabase.co";
+const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZmxoYm9nZmh0bmpqbnhqbnRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMjU1MTAsImV4cCI6MjA5NTkwMTUxMH0.R4OHHkHHGGhC_9mkUbuQ52Hu75340X4H-MvadAqG7jQ";
+
+const sb = async (path, opts = {}) => {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: opts.prefer || "",
+    },
+    ...opts,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.details || res.statusText);
+  }
+  return res.status === 204 ? null : res.json();
+};
+
+const slugify = s => s.toLowerCase().replace(/\s+/g,"").replace(/[^a-z0-9]/g,"");
+
+const fmtNGN = n => new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",maximumFractionDigits:0}).format(n||0);
+
+const G = {
+  bg:"#0a0f1e", surface:"#111827", card:"#161d30", border:"#1e2d45",
+  accent:"#00e5ff", accent2:"#7b61ff", green:"#00d68f", red:"#ff4d6d",
+  text:"#e8edf7", muted:"#6b7fa3", gold:"#ffd166"
+};
+
+const btnStyle = (v="primary") => ({
+  display:"inline-flex", alignItems:"center", justifyContent:"center", gap:8,
+  padding:"13px 28px", borderRadius:12, border:"none",
+  fontFamily:"'DM Sans',sans-serif", fontWeight:600, fontSize:15,
+  cursor:"pointer", transition:"all .2s",
+  ...(v==="primary" ? {background:`linear-gradient(135deg,${G.accent},${G.accent2})`,color:"#fff"}
+    : v==="ghost"   ? {background:"transparent",color:G.text,border:`1px solid ${G.border}`}
+    : v==="green"   ? {background:`linear-gradient(135deg,${G.green},#00b37a)`,color:"#fff"}
+    :                 {background:G.card,color:G.text,border:`1px solid ${G.border}`})
+});
+
+const inputStyle = {
+  width:"100%", padding:"13px 16px", background:G.surface,
+  border:`1px solid ${G.border}`, borderRadius:10, color:G.text,
+  fontFamily:"'DM Sans',sans-serif", fontSize:15, outline:"none", transition:"border .2s"
+};
+
+/* ── Toast ── */
+function Toast({msg,type}){
+  if(!msg) return null;
+  return <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,
+    background:type==="error"?G.red:G.green,color:"#fff",padding:"12px 20px",
+    borderRadius:12,fontWeight:600,fontSize:14,boxShadow:"0 8px 32px rgba(0,0,0,.4)",
+    maxWidth:320,animation:"fadeUp .3s ease"}}>{msg}</div>;
+}
+
+/* ── StatCard ── */
+function StatCard({icon,label,value,sub,color,delay}){
+  return(
+    <div className={`fade-up ${delay}`} style={{background:G.card,border:`1px solid ${G.border}`,
+      borderRadius:16,padding:24,display:"flex",flexDirection:"column",gap:12,
+      position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-20,right:-20,width:80,height:80,
+        background:`${color}18`,borderRadius:"50%",filter:"blur(16px)"}}/>
+      <div style={{width:44,height:44,background:`${color}22`,borderRadius:12,
+        display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{icon}</div>
+      <div>
+        <div style={{color:G.muted,fontSize:13,marginBottom:4}}>{label}</div>
+        <div className="syne" style={{fontWeight:700,fontSize:26,color:G.text}}>{value}</div>
+        {sub && <div style={{fontSize:12,color,marginTop:4}}>{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ── Landing ── */
+function Landing({onSignup}){
+  const steps=[
+    "Create a free account",
+    "Enter your Store Name, Phone Number, and Password",
+    "Instantly receive your personal reseller dashboard",
+    "Get your unique store link to share with customers",
+    "Sell data bundles and earn profits"
+  ];
+  const benefits=[
+    {icon:"🆓",title:"Free Account",desc:"Zero cost to get started — no hidden fees"},
+    {icon:"⚡",title:"Instant Dashboard",desc:"Access your reseller panel immediately"},
+    {icon:"🔗",title:"Personal Store Link",desc:"Your own branded URL to share with customers"},
+    {icon:"🚀",title:"Fast Transactions",desc:"Lightning-fast data delivery every time"},
+    {icon:"📊",title:"Easy Management",desc:"Track sales and customers in one place"},
+    {icon:"📱",title:"Mobile Friendly",desc:"Fully optimised for phones and tablets"},
+  ];
+  return(
+    <div style={{minHeight:"100vh"}}>
+      {/* Nav */}
+      <nav style={{padding:"20px 24px",display:"flex",alignItems:"center",
+        justifyContent:"space-between",borderBottom:`1px solid ${G.border}`,
+        background:`${G.bg}ee`,backdropFilter:"blur(12px)",
+        position:"sticky",top:0,zIndex:100}}>
+        <div className="syne" style={{fontWeight:800,fontSize:20,
+          background:`linear-gradient(135deg,${G.accent},${G.accent2})`,
+          WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>DataResell Pro</div>
+        <button style={{...btnStyle("primary"),padding:"10px 22px",fontSize:14}} onClick={onSignup}>Get Started →</button>
+      </nav>
+
+      {/* Hero */}
+      <div style={{position:"relative",padding:"80px 24px 100px",textAlign:"center",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse 80% 50% at 50% -10%,${G.accent}18,transparent)`}}/>
+        <div style={{position:"absolute",top:"20%",left:"10%",width:300,height:300,
+          background:`${G.accent2}12`,borderRadius:"50%",filter:"blur(80px)"}}/>
+        <div style={{position:"absolute",top:"30%",right:"5%",width:200,height:200,
+          background:`${G.accent}10`,borderRadius:"50%",filter:"blur(60px)"}}/>
+        <div style={{position:"relative",maxWidth:700,margin:"0 auto"}}>
+          <div className="fade-up fa1" style={{display:"inline-block",
+            background:`${G.accent}18`,border:`1px solid ${G.accent}40`,
+            color:G.accent,padding:"6px 16px",borderRadius:100,fontSize:13,
+            fontWeight:600,marginBottom:24}}>🚀 #1 Data Reseller Platform in Nigeria</div>
+          <h1 className="syne fade-up fa2" style={{fontSize:"clamp(32px,6vw,58px)",
+            fontWeight:800,lineHeight:1.15,marginBottom:20}}>
+            Start Your Own<br/>
+            <span style={{background:`linear-gradient(135deg,${G.accent},${G.accent2})`,
+              WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+              Data Reselling Business
+            </span><br/>Today
+          </h1>
+          <p className="fade-up fa3" style={{fontSize:18,color:G.muted,lineHeight:1.7,
+            marginBottom:36,maxWidth:520,margin:"0 auto 36px"}}>
+            Launch your personal data store in minutes. No technical skills needed — just sign up and start earning.
+          </p>
+          <div className="fade-up fa4" style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
+            <button style={{...btnStyle("primary"),fontSize:16,padding:"15px 36px",animation:"glow 2s infinite"}}
+              onClick={onSignup}>Create Free Account</button>
+            <button style={{...btnStyle("ghost"),fontSize:16,padding:"15px 36px"}}
+              onClick={()=>document.getElementById("how").scrollIntoView({behavior:"smooth"})}>How It Works</button>
+          </div>
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div id="how" style={{padding:"80px 24px",maxWidth:900,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:56}}>
+          <h2 className="syne" style={{fontSize:36,fontWeight:800,marginBottom:12}}>How It Works</h2>
+          <p style={{color:G.muted,fontSize:16}}>Five simple steps to your reseller business</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:0}}>
+          {steps.map((s,i)=>(
+            <div key={i} style={{display:"flex",gap:20,alignItems:"flex-start",padding:"20px 0",
+              borderBottom:i<steps.length-1?`1px solid ${G.border}`:"none"}}>
+              <div style={{minWidth:44,height:44,background:`linear-gradient(135deg,${G.accent},${G.accent2})`,
+                borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",
+                fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"#fff",flexShrink:0}}>{i+1}</div>
+              <div style={{paddingTop:10,fontSize:16,fontWeight:500,color:G.text}}>{s}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Benefits */}
+      <div style={{padding:"80px 24px",background:`${G.surface}88`}}>
+        <div style={{maxWidth:1000,margin:"0 auto"}}>
+          <div style={{textAlign:"center",marginBottom:56}}>
+            <h2 className="syne" style={{fontSize:36,fontWeight:800,marginBottom:12}}>Why Choose Us</h2>
+            <p style={{color:G.muted,fontSize:16}}>Everything you need to run a successful data business</p>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20}}>
+            {benefits.map((b,i)=>(
+              <div key={i} style={{background:G.card,border:`1px solid ${G.border}`,borderRadius:16,
+                padding:28,transition:"border .2s,transform .2s",cursor:"default"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=G.accent+"60";e.currentTarget.style.transform="translateY(-4px)"}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=G.border;e.currentTarget.style.transform="translateY(0)"}}>
+                <div style={{fontSize:36,marginBottom:14}}>{b.icon}</div>
+                <div className="syne" style={{fontWeight:700,fontSize:18,marginBottom:8}}>{b.title}</div>
+                <div style={{color:G.muted,fontSize:14,lineHeight:1.6}}>{b.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div style={{padding:"100px 24px",textAlign:"center",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse 60% 60% at 50% 50%,${G.accent2}15,transparent)`}}/>
+        <div style={{position:"relative"}}>
+          <h2 className="syne" style={{fontSize:"clamp(28px,5vw,48px)",fontWeight:800,marginBottom:16}}>Ready to Start Earning?</h2>
+          <p style={{color:G.muted,fontSize:17,marginBottom:36}}>Join thousands of resellers making money with DataResell Pro</p>
+          <button style={{...btnStyle("primary"),fontSize:17,padding:"16px 44px",animation:"glow 2s infinite"}}
+            onClick={onSignup}>Create Your Free Account →</button>
+        </div>
+      </div>
+
+      <footer style={{borderTop:`1px solid ${G.border}`,padding:24,textAlign:"center",color:G.muted,fontSize:13}}>
+        © 2025 DataResell Pro · All rights reserved
+      </footer>
+    </div>
+  );
+}
+
+/* ── Signup Modal ── */
+function SignupModal({onSuccess,onClose}){
+  const [form,setForm]=useState({store_name:"",phone_number:"",password:""});
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+
+  const handle = async () => {
+    setError("");
+    if(!form.store_name.trim()||!form.phone_number.trim()||!form.password.trim()){
+      setError("All fields are required."); return;
+    }
+    if(form.password.length<6){setError("Password must be at least 6 characters."); return;}
+    setLoading(true);
+    try{
+      const slug = slugify(form.store_name);
+      const existing = await sb(`resellers?store_slug=eq.${slug}&select=id`);
+      const finalSlug = existing.length ? `${slug}${Date.now().toString().slice(-4)}` : slug;
+      const [reseller] = await sb("resellers?select=*",{
+        method:"POST", prefer:"return=representation",
+        body:JSON.stringify({
+          store_name:form.store_name.trim(),
+          phone_number:form.phone_number.trim(),
+          password:form.password,
+          store_slug:finalSlug,
+          wallet_balance:0, total_sales:0, total_customers:0
+        })
+      });
+      onSuccess(reseller);
+    }catch(e){
+      setError(e.message||"Something went wrong. Try again.");
+    }finally{ setLoading(false); }
+  };
+
+  const fields=[
+    {k:"store_name",label:"Store Name",ph:"e.g. John Data Hub",type:"text"},
+    {k:"phone_number",label:"Phone Number",ph:"e.g. 08012345678",type:"tel"},
+    {k:"password",label:"Password",ph:"Min. 6 characters",type:"password"},
+  ];
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",backdropFilter:"blur(8px)",
+      zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:G.card,border:`1px solid ${G.border}`,borderRadius:20,
+        padding:36,width:"100%",maxWidth:440,position:"relative",animation:"fadeUp .3s ease"}}>
+        <button onClick={onClose} style={{position:"absolute",top:16,right:16,background:"none",
+          border:"none",color:G.muted,cursor:"pointer",fontSize:22,lineHeight:1}}>✕</button>
+        <div className="syne" style={{fontWeight:800,fontSize:24,marginBottom:6}}>Create Free Account</div>
+        <p style={{color:G.muted,fontSize:14,marginBottom:28}}>Your dashboard is ready in seconds</p>
+        {error && <div style={{background:`${G.red}22`,border:`1px solid ${G.red}50`,color:G.red,
+          padding:"10px 14px",borderRadius:10,fontSize:14,marginBottom:18}}>{error}</div>}
+        {fields.map(f=>(
+          <div key={f.k} style={{marginBottom:18}}>
+            <label style={{fontSize:13,fontWeight:600,color:G.muted,display:"block",marginBottom:7}}>{f.label}</label>
+            <input style={inputStyle} type={f.type} placeholder={f.ph}
+              value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))}
+              onKeyDown={e=>e.key==="Enter"&&handle()}
+              onFocus={e=>e.target.style.borderColor=G.accent}
+              onBlur={e=>e.target.style.borderColor=G.border}/>
+            {f.k==="store_name"&&form.store_name&&(
+              <div style={{fontSize:12,color:G.accent,marginTop:5}}>
+                Your link: <strong>{window.location.origin}/store/{slugify(form.store_name)}</strong>
+              </div>
+            )}
+          </div>
+        ))}
+        <button style={{...btnStyle("primary"),width:"100%",padding:15,fontSize:16,marginTop:8}}
+          onClick={handle} disabled={loading}>
+          {loading ? <><span className="spinner"/> Creating Account…</> : "Create Account →"}
+        </button>
+        <p style={{textAlign:"center",color:G.muted,fontSize:13,marginTop:16}}>No email or OTP required · Instant access</p>
+      </div>
+    </div>
+  );
+}
+
+/* ── Dashboard ── */
+function Dashboard({reseller:init,onLogout}){
+  const [reseller,setReseller]=useState(init);
+  const [txns,setTxns]=useState([]);
+  const [copied,setCopied]=useState(false);
+  const [toast,setToast]=useState({msg:"",type:""});
+  const [buyForm,setBuyForm]=useState({network:"MTN",bundle:"",customer_phone:""});
+  const [buying,setBuying]=useState(false);
+  const [tab,setTab]=useState("overview");
+
+  const storeUrl = `${window.location.origin}/store/${reseller.store_slug}`;
+
+  const showToast=(msg,type="success")=>{
+    setToast({msg,type}); setTimeout(()=>setToast({msg:"",type:""}),3000);
+  };
+
+  const fetchData = useCallback(async()=>{
+    try{
+      const [t,[r]] = await Promise.all([
+        sb(`transactions?reseller_id=eq.${reseller.id}&order=created_at.desc&limit=20&select=*`),
+        sb(`resellers?id=eq.${reseller.id}&select=*`)
+      ]);
+      setTxns(t); if(r) setReseller(r);
+    }catch{}
+  },[reseller.id]);
+
+  useEffect(()=>{fetchData(); const i=setInterval(fetchData,30000); return()=>clearInterval(i);},[fetchData]);
+
+  const copyLink=()=>{
+    navigator.clipboard.writeText(storeUrl).then(()=>{
+      setCopied(true); showToast("Store link copied!");
+      setTimeout(()=>setCopied(false),2000);
+    });
+  };
+
+  const bundles={
+    MTN:["500MB - ₦150","1GB - ₦250","2GB - ₦450","5GB - ₦1,000","10GB - ₦1,800"],
+    Airtel:["500MB - ₦160","1GB - ₦260","2GB - ₦460","5GB - ₦1,050"],
+    Glo:["500MB - ₦140","1GB - ₦240","2GB - ₦440","5GB - ₦980"],
+    "9mobile":["500MB - ₦155","1GB - ₦255","2GB - ₦455"],
+  };
+
+  const handleBuy = async()=>{
+    if(!buyForm.customer_phone||!buyForm.bundle){showToast("Fill all fields","error");return;}
+    const amount=parseInt((buyForm.bundle.match(/₦([\d,]+)/)?.[1]||"0").replace(",",""));
+    if((reseller.wallet_balance||0)<amount){showToast("Insufficient wallet balance","error");return;}
+    setBuying(true);
+    try{
+      await sb(`resellers?id=eq.${reseller.id}`,{method:"PATCH",prefer:"return=representation",
+        body:JSON.stringify({
+          wallet_balance:(reseller.wallet_balance||0)-amount,
+          total_sales:(reseller.total_sales||0)+amount,
+          total_customers:(reseller.total_customers||0)+1
+        })});
+      await sb("transactions",{method:"POST",prefer:"return=representation",
+        body:JSON.stringify({
+          reseller_id:reseller.id, network:buyForm.network,
+          bundle:buyForm.bundle, amount, customer_phone:buyForm.customer_phone,
+          status:"success", type:"data_purchase"
+        })});
+      showToast(`✅ ${buyForm.bundle.split(" -")[0]} sent to ${buyForm.customer_phone}`);
+      setBuyForm(p=>({...p,bundle:"",customer_phone:""}));
+      fetchData();
+    }catch(e){ showToast(e.message||"Transaction failed","error"); }
+    finally{ setBuying(false); }
+  };
+
+  const fundWallet=async()=>{
+    try{
+      await sb(`resellers?id=eq.${reseller.id}`,{method:"PATCH",prefer:"return=representation",
+        body:JSON.stringify({wallet_balance:(reseller.wallet_balance||0)+5000})});
+      showToast("₦5,000 added to wallet (demo)"); fetchData();
+    }catch{ showToast("Failed","error"); }
+  };
+
+  const navItems=[
+    {id:"overview",icon:"📊",label:"Overview"},
+    {id:"buy",icon:"📡",label:"Buy Data"},
+    {id:"transactions",icon:"📋",label:"Transactions"},
+    {id:"store",icon:"🔗",label:"My Store"},
+  ];
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+      <Toast msg={toast.msg} type={toast.type}/>
+
+      {/* Header */}
+      <header style={{background:G.card,borderBottom:`1px solid ${G.border}`,
+        padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",
+        position:"sticky",top:0,zIndex:50}}>
+        <div>
+          <div className="syne" style={{fontWeight:800,fontSize:16,
+            background:`linear-gradient(135deg,${G.accent},${G.accent2})`,
+            WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>DataResell Pro</div>
+          <div style={{fontSize:12,color:G.muted,marginTop:1}}>Reseller Dashboard</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:36,height:36,background:`linear-gradient(135deg,${G.accent},${G.accent2})`,
+            borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",
+            fontWeight:800,fontSize:16,color:"#fff"}}>
+            {reseller.store_name[0].toUpperCase()}
+          </div>
+          <button style={{...btnStyle("ghost"),padding:"8px 14px",fontSize:13}} onClick={onLogout}>Logout</button>
+        </div>
+      </header>
+
+      <div style={{display:"flex",flex:1,maxWidth:1100,margin:"0 auto",width:"100%",padding:"0 0 80px"}}>
+        {/* Sidebar */}
+        <aside className="sidebar-desktop" style={{width:220,padding:"24px 12px",
+          flexDirection:"column",gap:4,flexShrink:0}}>
+          {navItems.map(n=>(
+            <button key={n.id} onClick={()=>setTab(n.id)}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderRadius:12,
+                border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:15,
+                fontWeight:tab===n.id?600:400,
+                background:tab===n.id?`${G.accent}18`:"transparent",
+                color:tab===n.id?G.accent:G.muted,transition:"all .2s",textAlign:"left",width:"100%"}}>
+              <span>{n.icon}</span>{n.label}
+            </button>
+          ))}
+          <div style={{marginTop:"auto",padding:"12px 16px",background:G.surface,
+            borderRadius:12,border:`1px solid ${G.border}`}}>
+            <div style={{fontSize:11,color:G.muted,marginBottom:4}}>WALLET</div>
+            <div className="syne" style={{fontWeight:800,fontSize:20,color:G.green}}>{fmtNGN(reseller.wallet_balance)}</div>
+            <button style={{...btnStyle("green"),width:"100%",padding:"9px",fontSize:13,marginTop:10}}
+              onClick={fundWallet}>+ Fund Wallet</button>
+          </div>
+        </aside>
+
+        {/* Main */}
+        <main style={{flex:1,padding:"24px 20px",minWidth:0}}>
+          <div className="fade-up fa1" style={{marginBottom:24}}>
+            <h1 className="syne" style={{fontSize:26,fontWeight:800}}>
+              Welcome back, <span style={{color:G.accent}}>{reseller.store_name}</span> 👋
+            </h1>
+            <p style={{color:G.muted,fontSize:14,marginTop:4}}>Here's your business overview</p>
+          </div>
+
+          {/* OVERVIEW */}
+          {tab==="overview"&&(
+            <>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:16,marginBottom:28}}>
+                <StatCard icon="💰" label="Wallet Balance" value={fmtNGN(reseller.wallet_balance)} sub="Available funds" color={G.green} delay="fa1"/>
+                <StatCard icon="📈" label="Total Sales" value={fmtNGN(reseller.total_sales)} sub="All time revenue" color={G.accent} delay="fa2"/>
+                <StatCard icon="👥" label="Total Customers" value={String(reseller.total_customers||0)} sub="Unique customers" color={G.accent2} delay="fa3"/>
+                <StatCard icon="🛒" label="Transactions" value={String(txns.length)} sub="All time orders" color={G.gold} delay="fa4"/>
+              </div>
+
+              {/* Store link */}
+              <div className="fade-up fa5" style={{background:`linear-gradient(135deg,${G.accent}18,${G.accent2}18)`,
+                border:`1px solid ${G.accent}40`,borderRadius:16,padding:24,marginBottom:28}}>
+                <div style={{fontSize:13,color:G.accent,fontWeight:600,marginBottom:10}}>🔗 YOUR STORE LINK</div>
+                <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                  <div style={{flex:1,background:G.bg,border:`1px solid ${G.border}`,borderRadius:10,
+                    padding:"11px 14px",fontSize:14,color:G.text,fontFamily:"monospace",wordBreak:"break-all"}}>
+                    {storeUrl}
+                  </div>
+                  <button style={{...btnStyle("primary"),padding:"12px 20px",fontSize:14,whiteSpace:"nowrap"}}
+                    onClick={copyLink}>{copied?"✓ Copied!":"Copy Link"}</button>
+                </div>
+              </div>
+
+              {/* Recent txns */}
+              <div className="fade-up fa6">
+                <div className="syne" style={{fontWeight:700,fontSize:18,marginBottom:16}}>Recent Transactions</div>
+                {txns.length===0?(
+                  <div style={{textAlign:"center",padding:"48px 20px",color:G.muted,
+                    background:G.card,borderRadius:16,border:`1px solid ${G.border}`}}>
+                    <div style={{fontSize:40,marginBottom:12}}>📭</div>
+                    <div>No transactions yet. Start selling data!</div>
+                  </div>
+                ):(
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {txns.slice(0,5).map((t,i)=>(
+                      <div key={i} style={{background:G.card,border:`1px solid ${G.border}`,borderRadius:12,
+                        padding:"14px 18px",display:"flex",alignItems:"center",
+                        justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                        <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                          <div style={{width:38,height:38,background:`${G.green}22`,borderRadius:10,
+                            display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📡</div>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:14}}>{t.network} · {(t.bundle||"").split(" -")[0]}</div>
+                            <div style={{fontSize:12,color:G.muted}}>{t.customer_phone}</div>
+                          </div>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontWeight:700,color:G.green}}>{fmtNGN(t.amount)}</div>
+                          <div style={{fontSize:11,color:G.muted}}>{new Date(t.created_at).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* BUY DATA */}
+          {tab==="buy"&&(
+            <div style={{maxWidth:480}}>
+              <div className="syne fade-up fa1" style={{fontWeight:700,fontSize:22,marginBottom:24}}>Buy Data Bundle</div>
+              <div className="fade-up fa2" style={{background:G.card,border:`1px solid ${G.border}`,
+                borderRadius:16,padding:28,display:"flex",flexDirection:"column",gap:20}}>
+                <div>
+                  <label style={{fontSize:13,fontWeight:600,color:G.muted,display:"block",marginBottom:8}}>Network</label>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {Object.keys(bundles).map(n=>(
+                      <button key={n} onClick={()=>setBuyForm(p=>({...p,network:n,bundle:""}))}
+                        style={{padding:"9px 18px",borderRadius:10,
+                          border:`1px solid ${buyForm.network===n?G.accent:G.border}`,
+                          background:buyForm.network===n?`${G.accent}22`:G.surface,
+                          color:buyForm.network===n?G.accent:G.muted,
+                          cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,transition:"all .2s"}}>{n}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{fontSize:13,fontWeight:600,color:G.muted,display:"block",marginBottom:8}}>Data Bundle</label>
+                  <select style={{...inputStyle,appearance:"none"}} value={buyForm.bundle}
+                    onChange={e=>setBuyForm(p=>({...p,bundle:e.target.value}))}
+                    onFocus={e=>e.target.style.borderColor=G.accent}
+                    onBlur={e=>e.target.style.borderColor=G.border}>
+                    <option value="">Select a bundle…</option>
+                    {bundles[buyForm.network].map(b=><option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{fontSize:13,fontWeight:600,color:G.muted,display:"block",marginBottom:8}}>Customer Phone Number</label>
+                  <input style={inputStyle} type="tel" placeholder="e.g. 08012345678"
+                    value={buyForm.customer_phone} onChange={e=>setBuyForm(p=>({...p,customer_phone:e.target.value}))}
+                    onFocus={e=>e.target.style.borderColor=G.accent}
+                    onBlur={e=>e.target.style.borderColor=G.border}/>
+                </div>
+                <div style={{background:G.surface,borderRadius:12,padding:"14px 18px",
+                  display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{color:G.muted,fontSize:14}}>Wallet Balance</span>
+                  <span style={{fontWeight:700,color:G.green,fontSize:18}}>{fmtNGN(reseller.wallet_balance)}</span>
+                </div>
+                <button style={{...btnStyle("primary"),width:"100%",padding:15,fontSize:16}}
+                  onClick={handleBuy} disabled={buying}>
+                  {buying?<><span className="spinner"/> Processing…</>:"Send Data Bundle"}
+                </button>
+                <button style={{...btnStyle("green"),width:"100%",padding:13,fontSize:15}}
+                  onClick={fundWallet}>+ Fund Wallet (Demo +₦5,000)</button>
+              </div>
+            </div>
+          )}
+
+          {/* TRANSACTIONS */}
+          {tab==="transactions"&&(
+            <div>
+              <div className="syne fade-up fa1" style={{fontWeight:700,fontSize:22,marginBottom:24}}>All Transactions</div>
+              {txns.length===0?(
+                <div style={{textAlign:"center",padding:"64px 20px",color:G.muted,
+                  background:G.card,borderRadius:16,border:`1px solid ${G.border}`}}>
+                  <div style={{fontSize:48,marginBottom:12}}>📭</div>
+                  <div style={{fontSize:16}}>No transactions yet</div>
+                  <div style={{fontSize:13,marginTop:8}}>Your sales will appear here</div>
+                </div>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {txns.map((t,i)=>(
+                    <div key={i} style={{background:G.card,border:`1px solid ${G.border}`,borderRadius:12,
+                      padding:"16px 20px",display:"flex",alignItems:"center",
+                      justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                      <div style={{display:"flex",gap:14,alignItems:"center"}}>
+                        <div style={{width:42,height:42,
+                          background:`${t.status==="success"?G.green:G.red}22`,
+                          borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>
+                          {t.status==="success"?"✅":"❌"}
+                        </div>
+                        <div>
+                          <div style={{fontWeight:600}}>{t.network} — {(t.bundle||"").split(" -")[0]}</div>
+                          <div style={{fontSize:13,color:G.muted}}>{t.customer_phone}</div>
+                        </div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontWeight:700,fontSize:17,color:G.green}}>{fmtNGN(t.amount)}</div>
+                        <div style={{fontSize:12,color:G.muted}}>{new Date(t.created_at).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MY STORE */}
+          {tab==="store"&&(
+            <div style={{maxWidth:520}}>
+              <div className="syne fade-up fa1" style={{fontWeight:700,fontSize:22,marginBottom:24}}>My Store</div>
+              <div className="fade-up fa2" style={{background:`linear-gradient(135deg,${G.card},${G.surface})`,
+                border:`1px solid ${G.accent}40`,borderRadius:20,padding:32,textAlign:"center"}}>
+                <div style={{width:72,height:72,background:`linear-gradient(135deg,${G.accent},${G.accent2})`,
+                  borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",
+                  fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:"#fff",margin:"0 auto 16px"}}>
+                  {reseller.store_name[0].toUpperCase()}
+                </div>
+                <div className="syne" style={{fontWeight:800,fontSize:24,marginBottom:4}}>{reseller.store_name}</div>
+                <div style={{color:G.muted,fontSize:14,marginBottom:28}}>📞 {reseller.phone_number}</div>
+                <div style={{background:G.bg,border:`1px solid ${G.border}`,borderRadius:12,
+                  padding:"14px 18px",marginBottom:16,wordBreak:"break-all",
+                  fontFamily:"monospace",fontSize:14,color:G.accent}}>{storeUrl}</div>
+                <button style={{...btnStyle("primary"),width:"100%",padding:14,fontSize:15}}
+                  onClick={copyLink}>{copied?"✓ Link Copied!":"📋 Copy Store Link"}</button>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginTop:24}}>
+                  {[["💰","Balance",fmtNGN(reseller.wallet_balance)],
+                    ["📈","Sales",fmtNGN(reseller.total_sales)],
+                    ["👥","Customers",reseller.total_customers||0]].map(([ico,lbl,val])=>(
+                    <div key={lbl} style={{background:G.surface,borderRadius:12,padding:"14px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:22,marginBottom:6}}>{ico}</div>
+                      <div style={{fontSize:11,color:G.muted}}>{lbl}</div>
+                      <div style={{fontWeight:700,fontSize:14,marginTop:4}}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Mobile nav */}
+      <nav className="mobile-nav" style={{position:"fixed",bottom:0,left:0,right:0,
+        background:G.card,borderTop:`1px solid ${G.border}`,
+        display:"flex",zIndex:50,padding:"8px 0"}}>
+        {navItems.map(n=>(
+          <button key={n.id} onClick={()=>setTab(n.id)}
+            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",
+              gap:3,padding:"8px 4px",border:"none",background:"none",cursor:"pointer",
+              color:tab===n.id?G.accent:G.muted,fontSize:10,
+              fontFamily:"'DM Sans',sans-serif",fontWeight:tab===n.id?600:400,transition:"color .2s"}}>
+            <span style={{fontSize:20}}>{n.icon}</span>{n.label}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+/* ── App Root ── */
+function App(){
+  const [screen,setScreen]=useState("landing");
+  const [showSignup,setShowSignup]=useState(false);
+  const [reseller,setReseller]=useState(null);
+
+  const onSuccess = r => { setReseller(r); setShowSignup(false); setScreen("dashboard"); };
+
+  return(
+    <>
+      {screen==="landing"&&(
+        <>
+          <Landing onSignup={()=>setShowSignup(true)}/>
+          {showSignup&&<SignupModal onSuccess={onSuccess} onClose={()=>setShowSignup(false)}/>}
+        </>
+      )}
+      {screen==="dashboard"&&reseller&&(
+        <Dashboard reseller={reseller} onLogout={()=>{setReseller(null);setScreen("landing");}}/>
+      )}
+    </>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App/>);
+</script>
+</body>
+</html>
