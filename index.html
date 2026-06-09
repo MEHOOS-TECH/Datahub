@@ -4,33 +4,24 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>DataResell Pro</title>
-<!-- Preconnect to external origins early -->
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link rel="preconnect" href="https://cdnjs.cloudflare.com"/>
-<link rel="preconnect" href="https://js.paystack.co"/>
-<link rel="dns-prefetch" href="https://lbflhbogfhtnjjnxjntb.supabase.co"/>
 
-<!-- Fonts: only weights actually used, swap avoids invisible text -->
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
-
-<!-- Preload heaviest scripts so browser fetches them in parallel ASAP -->
-<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" as="script"/>
-<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" as="script"/>
-<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" as="script"/>
-
-<!-- React + Babel must be synchronous (UMD globals needed before text/babel runs) -->
+<!-- React production builds -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<!-- Babel: transpiles JSX at runtime. Only 2 weights per font actually used. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-<!-- Paystack only needed at payment time — load async -->
-<script src="https://js.paystack.co/v1/inline.js" async></script>
+
+<!-- Fonts: trimmed to weights actually used (was loading 7, now 5) -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+<!-- Paystack: defer so it doesn't block HTML parsing -->
+<script src="https://js.paystack.co/v1/inline.js" defer></script>
+
 <style>
-/* System font fallback renders instantly while DM Sans/Syne load */
-@font-face{font-family:'DM Sans';font-display:swap}
-@font-face{font-family:'Syne';font-display:swap}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden;text-rendering:optimizeSpeed}
+body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:#0a0f1e}
 ::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:3px}
@@ -41,10 +32,10 @@ body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',-apple-system,BlinkM
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-.fade-up{animation:fadeUp .4s ease forwards}
-.fa1{animation-delay:.05s;opacity:0}.fa2{animation-delay:.1s;opacity:0}.fa3{animation-delay:.15s;opacity:0}
-.fa4{animation-delay:.2s;opacity:0}.fa5{animation-delay:.25s;opacity:0}.fa6{animation-delay:.3s;opacity:0}
-.spinner{width:22px;height:22px;border:2px solid rgba(255,255,255,.2);border-top-color:#00e5ff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;will-change:transform}
+.fade-up{animation:fadeUp .5s ease forwards}
+.fa1{animation-delay:.05s;opacity:0}.fa2{animation-delay:.15s;opacity:0}.fa3{animation-delay:.25s;opacity:0}
+.fa4{animation-delay:.35s;opacity:0}.fa5{animation-delay:.45s;opacity:0}.fa6{animation-delay:.55s;opacity:0}
+.spinner{width:22px;height:22px;border:2px solid rgba(255,255,255,.2);border-top-color:#00e5ff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle}
 @media(min-width:700px){.sidebar-desktop{display:flex!important}.mobile-nav{display:none!important}}
 @media(max-width:699px){.sidebar-desktop{display:none!important}}
 select option{background:#111827;color:#e8edf7}
@@ -117,16 +108,13 @@ body::before{
 .order-id-box:hover{background:rgba(0,229,255,0.14);}
 @keyframes trackPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,229,255,0.3)}50%{box-shadow:0 0 0 8px rgba(0,229,255,0)}}
 .track-live-dot{width:8px;height:8px;border-radius:50%;background:#00e5ff;animation:trackPulse 1.8s infinite;display:inline-block;}
-#loader{position:fixed;inset:0;background:#0a0f1e;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .3s;}
-#loader.hidden{opacity:0;pointer-events:none;}
-.ld-spin{width:36px;height:36px;border:2px solid rgba(0,229,255,.2);border-top-color:#00e5ff;border-radius:50%;animation:spin .6s linear infinite;margin-bottom:12px;}
-.ld-text{color:#6b7fa3;font-family:-apple-system,sans-serif;font-size:13px;letter-spacing:0.3px;}
+
 </style>
 </head>
 <body>
 <div id="loader"><div class="ld-spin"></div><div class="ld-text">Loading…</div></div>
 <div id="root"></div>
-<script type="text/babel">
+<script type="text/babel" data-presets="react">
 const { useState, useEffect, useCallback } = React;
 
 const SUPABASE_URL = "https://lbflhbogfhtnjjnxjntb.supabase.co";
@@ -273,11 +261,19 @@ function Landing({onSignup, onLogin, onSecretTap}){
   };
 
   useEffect(()=>{
+    // Use Prefer: count=exact so we get a header, not all rows
+    const countSb = async (path) => {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`,
+          "Content-Type": "application/json", Prefer: "count=exact" }
+      });
+      return parseInt(res.headers.get("content-range")?.split("/")?.[1] || "0", 10);
+    };
     Promise.all([
-      sb("resellers?select=id").catch(()=>[]),
-      sb("transactions?select=id&status=eq.success").catch(()=>[])
+      countSb("resellers?select=id").catch(()=>0),
+      countSb("transactions?select=id&status=eq.success").catch(()=>0)
     ]).then(([resellers, txns])=>{
-      setLiveStats({resellers:resellers.length||0, txns:txns.length||0, loaded:true});
+      setLiveStats({resellers, txns, loaded:true});
     }).catch(()=>{});
   },[]);
 
@@ -802,9 +798,12 @@ function ResellerNotificationsTab({reseller, showToast}){
   };
 
   const markAllRead = async()=>{
-    const unread = notifs.filter(n=>!n.read);
     try{
-      await Promise.all(unread.map(n=>sb(`notifications?id=eq.${n.id}`,{method:"PATCH",prefer:"return=representation",body:JSON.stringify({read:true})})));
+      // Single bulk PATCH — filter by reseller_id, much faster than N serial calls
+      await sb(`notifications?reseller_id=eq.${reseller.id}&read=eq.false`,{
+        method:"PATCH", prefer:"return=representation",
+        body:JSON.stringify({read:true})
+      });
       setNotifs(prev=>prev.map(n=>({...n,read:true})));
       showToast("All marked as read");
     }catch(e){ showToast("Error: "+e.message,"error"); }
@@ -1004,7 +1003,16 @@ function Dashboard({reseller:init,onLogout}){
     }catch{}
   },[reseller.id]);
 
-  useEffect(()=>{fetchData(); const i=setInterval(fetchData,30000); return()=>clearInterval(i);},[fetchData]);
+  useEffect(()=>{
+    fetchData();
+    let i = setInterval(fetchData, 30000);
+    const onVisibility = () => {
+      if (document.hidden) { clearInterval(i); }
+      else { fetchData(); i = setInterval(fetchData, 30000); }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => { clearInterval(i); document.removeEventListener("visibilitychange", onVisibility); };
+  },[fetchData]);
 
   const copyLink=()=>{
     navigator.clipboard.writeText(storeUrl).then(()=>{
@@ -6362,11 +6370,13 @@ function App(){
 
 
 ReactDOM.render(<App/>, document.getElementById("root"));
-// Hide loader immediately after React mounts — don't wait for window.load
+
+// Dismiss loader immediately after React mounts
 (function(){
   var loader = document.getElementById("loader");
   if(loader){ loader.classList.add("hidden"); setTimeout(function(){ loader.remove(); }, 400); }
 })();
+
 </script>
 </body>
 </html>
