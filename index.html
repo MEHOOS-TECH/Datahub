@@ -5036,7 +5036,7 @@ function StoreFront({slug}){
     Telecel: <div style={{width:58,height:58,background:"linear-gradient(135deg,#007AFF,#5856D6)",borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:900,fontSize:18,fontFamily:"sans-serif",boxShadow:"0 4px 20px rgba(0,122,255,0.4)"}}>t</div>,
   };
 
-  const [sfTab, setSfTab] = useState("bundles"); // "bundles"|"giftcards"|"esim"|"utilities"|"social"|"track"
+  const [sfTab, setSfTab] = useState("bundles");
   const [socialSelected, setSocialSelected] = useState(null);
   const [socialQty, setSocialQty] = useState(1000);
   const [socialLink, setSocialLink] = useState("");
@@ -5044,6 +5044,92 @@ function StoreFront({slug}){
   const [socialNote, setSocialNote] = useState("");
   const [socialCat, setSocialCat] = useState("Instagram");
   const [socialDone, setSocialDone] = useState(null);
+
+  /* ── SMS state for storefront (must be before any early returns) ── */
+  const SF_SMS_PLANS = [
+    {id:"sms_1000",label:"1,000 SMS",count:1000,price:20,badge:"Starter"},
+    {id:"sms_2000",label:"2,000 SMS",count:2000,price:35,badge:"Popular",highlight:true},
+    {id:"sms_4000",label:"4,000 SMS",count:4000,price:50,badge:"Best Value"},
+  ];
+  const [sfSmsPlan, setSfSmsPlan] = React.useState(null);
+  const [sfSmsContacts, setSfSmsContacts] = React.useState([]);
+  const [sfSmsRejected, setSfSmsRejected] = React.useState([]);
+  const [sfSmsMsg, setSfSmsMsg] = React.useState("");
+  const [sfSmsSenderId, setSfSmsSenderId] = React.useState(reseller ? (reseller.store_name||"").slice(0,11) : "");
+  const [sfSmsBusy, setSfSmsBusy] = React.useState(false);
+  const [sfSmsDone, setSfSmsDone] = React.useState(null);
+  const [sfSmsDragOver, setSfSmsDragOver] = React.useState(false);
+  const sfSmsFileRef = React.useRef();
+
+  const sfSmsParseNumbers = (raw) => {
+    const lines = raw.split(/[\n,;\r]+/).map(l=>l.trim()).filter(Boolean);
+    const good=[], bad=[], seen=new Set();
+    const PERSONAL_HEADERS = /first.?name|last.?name|full.?name|contact.?name|fname|lname/i;
+    const VCARDS = /BEGIN:VCARD|FN:|N:/i;
+    lines.forEach(line=>{
+      if(PERSONAL_HEADERS.test(line)||VCARDS.test(line)){bad.push({raw:line,reason:"Personal contact"});return;}
+      const cleaned=line.replace(/[\s\-\(\)\+]/g,"");
+      if(/^\d{9,15}$/.test(cleaned)){
+        if(seen.has(cleaned))return;
+        seen.add(cleaned);good.push({num:cleaned});
+      }else{bad.push({raw:line.slice(0,40),reason:"Not a valid number"});}
+    });
+    return {good,bad};
+  };
+
+  const sfSmsHandleFile = (file)=>{
+    if(!file)return;
+    if(file.name.toLowerCase().endsWith(".vcf")){showToast("❌ vCard files are not accepted","error");return;}
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const text=e.target.result;
+      const firstLine=text.split(/[\n\r]/)[0]||"";
+      if(/first.?name|last.?name|full.?name/i.test(firstLine)){showToast("❌ CSV with name columns rejected — upload plain numbers only","error");return;}
+      const {good,bad}=sfSmsParseNumbers(text);
+      setSfSmsContacts(good);setSfSmsRejected(bad);
+      if(good.length===0){showToast("No valid phone numbers found","error");return;}
+      showToast(`✅ ${good.length} numbers loaded${bad.length?` · ${bad.length} skipped`:""}`);
+    };
+    reader.readAsText(file);
+  };
+
+  const sfSmsCanSend = sfSmsPlan && sfSmsContacts.length>0 && sfSmsMsg.trim().length>0 && sfSmsContacts.length<=sfSmsPlan.count;
+
+  const sfSmsHandlePay = ()=>{
+    if(!sfSmsCanSend){showToast("Select a plan, upload numbers, and write a message","error");return;}
+    if(!window.PaystackPop){showToast("Payment system not ready","error");return;}
+    setSfSmsBusy(true);
+    const ref="_SMS_"+Date.now();
+    const handler=window.PaystackPop.setup({
+      key:PAYSTACK_PK,
+      email:email||"customer@dataresell.pro",
+      amount:Math.round(sfSmsPlan.price*100),
+      currency:"GHS",
+      ref,
+      metadata:{custom_fields:[
+        {display_name:"SMS Plan",variable_name:"plan",value:sfSmsPlan.label},
+        {display_name:"Recipients",variable_name:"recipients",value:String(sfSmsContacts.length)},
+        {display_name:"Store",variable_name:"store",value:reseller.store_name},
+      ]},
+      callback:async(response)=>{
+        try{
+          await sb("transactions",{method:"POST",prefer:"return=representation",
+            body:JSON.stringify({reseller_id:reseller.id,network:"SMS",bundle:`${sfSmsPlan.label} Bulk SMS — ${sfSmsContacts.length} recipients`,amount:sfSmsPlan.price,customer_phone:reseller.phone_number,status:"pending",type:"sms_blast",payment_ref:response.reference,order_ref:"SMS-"+response.reference.slice(-8).toUpperCase()})});
+        }catch(e){console.warn("SMS log failed",e);}
+        setSfSmsDone({plan:sfSmsPlan,count:sfSmsContacts.length,ref:response.reference});
+        setSfSmsBusy(false);
+      },
+      onClose:()=>{showToast("Payment cancelled","error");setSfSmsBusy(false);}
+    });
+    handler.openIframe();
+  };
+
+  const sfTabList = [
+    {id:"bundles",icon:"📡",label:"Data Bundles"},
+    {id:"social",icon:"📱",label:"Social Media"},
+    {id:"sms",icon:"💬",label:"Bulk SMS"},
+    {id:"track",icon:"🔍",label:"Track Order"},
+  ];
 
   const recordOrder = async(paystackRef)=>{
     const amount = getPrice(selected);
@@ -5224,92 +5310,6 @@ function StoreFront({slug}){
   const socialBaseP = socialSelected ? getSocialBasePrice(socialSelected) : 0;
   const socialUnitP = socialSelected ? socialBaseP / socialSelected.per : 0;
   const socialTotal = parseFloat((socialUnitP * socialQty).toFixed(2));
-
-  /* ── SMS state for storefront ── */
-  const SF_SMS_PLANS = [
-    {id:"sms_1000",label:"1,000 SMS",count:1000,price:20,badge:"Starter"},
-    {id:"sms_2000",label:"2,000 SMS",count:2000,price:35,badge:"Popular",highlight:true},
-    {id:"sms_4000",label:"4,000 SMS",count:4000,price:50,badge:"Best Value"},
-  ];
-  const [sfSmsPlan, setSfSmsPlan] = React.useState(null);
-  const [sfSmsContacts, setSfSmsContacts] = React.useState([]);
-  const [sfSmsRejected, setSfSmsRejected] = React.useState([]);
-  const [sfSmsMsg, setSfSmsMsg] = React.useState("");
-  const [sfSmsSenderId, setSfSmsSenderId] = React.useState(reseller.store_name.slice(0,11));
-  const [sfSmsBusy, setSfSmsBusy] = React.useState(false);
-  const [sfSmsDone, setSfSmsDone] = React.useState(null);
-  const [sfSmsDragOver, setSfSmsDragOver] = React.useState(false);
-  const sfSmsFileRef = React.useRef();
-
-  const sfSmsParseNumbers = (raw) => {
-    const lines = raw.split(/[\n,;\r]+/).map(l=>l.trim()).filter(Boolean);
-    const good=[], bad=[], seen=new Set();
-    const PERSONAL_HEADERS = /first.?name|last.?name|full.?name|contact.?name|fname|lname/i;
-    const VCARDS = /BEGIN:VCARD|FN:|N:/i;
-    lines.forEach(line=>{
-      if(PERSONAL_HEADERS.test(line)||VCARDS.test(line)){bad.push({raw:line,reason:"Personal contact"});return;}
-      const cleaned=line.replace(/[\s\-\(\)\+]/g,"");
-      if(/^\d{9,15}$/.test(cleaned)){
-        if(seen.has(cleaned))return;
-        seen.add(cleaned);good.push({num:cleaned});
-      }else{bad.push({raw:line.slice(0,40),reason:"Not a valid number"});}
-    });
-    return {good,bad};
-  };
-
-  const sfSmsHandleFile = (file)=>{
-    if(!file)return;
-    if(file.name.toLowerCase().endsWith(".vcf")){showToast("❌ vCard files are not accepted","error");return;}
-    const reader=new FileReader();
-    reader.onload=e=>{
-      const text=e.target.result;
-      const firstLine=text.split(/[\n\r]/)[0]||"";
-      if(/first.?name|last.?name|full.?name/i.test(firstLine)){showToast("❌ CSV with name columns rejected — upload plain numbers only","error");return;}
-      const {good,bad}=sfSmsParseNumbers(text);
-      setSfSmsContacts(good);setSfSmsRejected(bad);
-      if(good.length===0){showToast("No valid phone numbers found","error");return;}
-      showToast(`✅ ${good.length} numbers loaded${bad.length?` · ${bad.length} skipped`:""}`);
-    };
-    reader.readAsText(file);
-  };
-
-  const sfSmsCanSend = sfSmsPlan && sfSmsContacts.length>0 && sfSmsMsg.trim().length>0 && sfSmsContacts.length<=sfSmsPlan.count;
-
-  const sfSmsHandlePay = ()=>{
-    if(!sfSmsCanSend){showToast("Select a plan, upload numbers, and write a message","error");return;}
-    if(!window.PaystackPop){showToast("Payment system not ready","error");return;}
-    setSfSmsBusy(true);
-    const ref="_SMS_"+Date.now();
-    const handler=window.PaystackPop.setup({
-      key:PAYSTACK_PK,
-      email:email||"customer@dataresell.pro",
-      amount:Math.round(sfSmsPlan.price*100),
-      currency:"GHS",
-      ref,
-      metadata:{custom_fields:[
-        {display_name:"SMS Plan",variable_name:"plan",value:sfSmsPlan.label},
-        {display_name:"Recipients",variable_name:"recipients",value:String(sfSmsContacts.length)},
-        {display_name:"Store",variable_name:"store",value:reseller.store_name},
-      ]},
-      callback:async(response)=>{
-        try{
-          await sb("transactions",{method:"POST",prefer:"return=representation",
-            body:JSON.stringify({reseller_id:reseller.id,network:"SMS",bundle:`${sfSmsPlan.label} Bulk SMS — ${sfSmsContacts.length} recipients`,amount:sfSmsPlan.price,customer_phone:reseller.phone_number,status:"pending",type:"sms_blast",payment_ref:response.reference,order_ref:"SMS-"+response.reference.slice(-8).toUpperCase()})});
-        }catch(e){console.warn("SMS log failed",e);}
-        setSfSmsDone({plan:sfSmsPlan,count:sfSmsContacts.length,ref:response.reference});
-        setSfSmsBusy(false);
-      },
-      onClose:()=>{showToast("Payment cancelled","error");setSfSmsBusy(false);}
-    });
-    handler.openIframe();
-  };
-
-  const sfTabList = [
-    {id:"bundles",icon:"📡",label:"Data Bundles"},
-    {id:"social",icon:"📱",label:"Social Media"},
-    {id:"sms",icon:"💬",label:"Bulk SMS"},
-    {id:"track",icon:"🔍",label:"Track Order"},
-  ];
 
   return(
     <div style={{background:"linear-gradient(160deg,#06091a 0%,#0b1024 50%,#080d1e 100%)",minHeight:"100vh",fontFamily:"'DM Sans',sans-serif"}}>
