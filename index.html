@@ -40,6 +40,9 @@ body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',sans-serif;min-heigh
 @media(max-width:699px){.sidebar-desktop{display:none!important}}
 select option{background:#111827;color:#e8edf7}
 
+
+/* Hide scrollbar on mobile nav */
+.mobile-nav div::-webkit-scrollbar{display:none}
 /* Mobile-first dashboard sizing */
 @media(max-width:699px){
   .dash-main{padding:12px 10px!important}
@@ -1931,26 +1934,31 @@ function Dashboard({reseller:init,onLogout}){
 
       {/* Mobile nav — new design */}
       <nav className="mobile-nav" style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,
-        background:"rgba(7,10,22,0.92)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+        background:"rgba(7,10,22,0.96)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
         borderTop:"1px solid rgba(0,255,198,0.08)",
-        boxShadow:"0 -8px 40px rgba(0,0,0,0.7)",
-        display:"flex",padding:"6px 4px calc(env(safe-area-inset-bottom,0px) + 6px)",gap:2}}>
+        boxShadow:"0 -8px 40px rgba(0,0,0,0.7)"}}>
+        <div style={{
+          display:"flex",overflowX:"auto",overflowY:"hidden",
+          padding:"6px 8px calc(env(safe-area-inset-bottom,0px) + 6px)",
+          gap:4,
+          scrollbarWidth:"none",WebkitOverflowScrolling:"touch",
+          msOverflowStyle:"none"}}>
         {navItems.map(n=>{
           const active = tab===n.id;
           return(
           <button key={n.id} onClick={()=>setTab(n.id)}
-            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",
-              gap:1,padding:"6px 2px",border:"none",cursor:"pointer",
+            style={{flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",
+              gap:1,padding:"6px 10px",border:"none",cursor:"pointer",
               fontFamily:"'DM Sans',sans-serif",fontWeight:active?700:400,
-              fontSize:active?9:8.5,letterSpacing:0,
-              color:active?"#0ff4c6":"rgba(255,255,255,0.25)",
-              background:active?"rgba(0,255,198,0.06)":"transparent",
+              fontSize:active?9:8.5,letterSpacing:0,minWidth:56,
+              color:active?"#0ff4c6":"rgba(255,255,255,0.35)",
+              background:active?"rgba(0,255,198,0.08)":"transparent",
               borderRadius:10,transition:"all .2s",
               position:"relative",overflow:"hidden"}}>
             {active&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",
-              width:24,height:2,background:"linear-gradient(90deg,#0ff4c6,#7b61ff)",
+              width:28,height:2,background:"linear-gradient(90deg,#0ff4c6,#7b61ff)",
               borderRadius:"0 0 4px 4px",boxShadow:"0 0 8px rgba(0,255,198,0.6)"}}/>}
-            <span style={{fontSize:active?19:16,transition:"all .2s",position:"relative"}}>
+            <span style={{fontSize:active?19:17,transition:"all .2s",position:"relative"}}>
               {n.icon}
               {n.id==="notifications"&&unreadNotifCount>0&&(
                 <span style={{position:"absolute",top:-4,right:-7,
@@ -1959,10 +1967,11 @@ function Dashboard({reseller:init,onLogout}){
                   padding:"1px 4px",lineHeight:1.2}}>{unreadNotifCount}</span>
               )}
             </span>
-            <span style={{lineHeight:1.2}}>{n.label}</span>
+            <span style={{lineHeight:1.2,whiteSpace:"nowrap"}}>{n.label}</span>
           </button>
           );
         })}
+        </div>
       </nav>
     </div>
   );
@@ -4014,15 +4023,18 @@ function AdminPanel({onLogout}){
 
       {/* Mobile nav */}
       <nav className="mobile-nav" style={{position:"fixed",bottom:0,left:0,right:0,
-        background:G.card,borderTop:`1px solid ${G.border}`,
-        display:"flex",zIndex:50,padding:"8px 0"}}>
+        background:G.card,borderTop:`1px solid ${G.border}`,zIndex:50}}>
+        <div style={{display:"flex",overflowX:"auto",overflowY:"hidden",
+          padding:"6px 8px",gap:4,
+          scrollbarWidth:"none",WebkitOverflowScrolling:"touch",msOverflowStyle:"none"}}>
         {navItems.map(n=>(
           <button key={n.id} onClick={()=>setTab(n.id)}
-            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",
-              gap:3,padding:"8px 4px",border:"none",background:"none",cursor:"pointer",
+            style={{flexShrink:0,minWidth:58,display:"flex",flexDirection:"column",alignItems:"center",
+              gap:3,padding:"8px 10px",border:"none",cursor:"pointer",
+              background:tab===n.id?`${G.gold}12`:"transparent",borderRadius:10,
               color:tab===n.id?G.gold:G.muted,fontSize:10,
-              fontFamily:"'DM Sans',sans-serif",fontWeight:tab===n.id?600:400,transition:"color .2s",
-              position:"relative"}}>
+              fontFamily:"'DM Sans',sans-serif",fontWeight:tab===n.id?600:400,transition:"all .2s",
+              position:"relative",whiteSpace:"nowrap"}}>
             <span style={{fontSize:18,position:"relative"}}>
               {n.icon}
               {n.id==="orders"&&pendingCount>0&&<span style={{position:"absolute",top:-4,right:-6,background:G.gold,color:"#000",borderRadius:20,fontSize:8,fontWeight:800,padding:"1px 4px"}}>{pendingCount}</span>}
@@ -4032,6 +4044,7 @@ function AdminPanel({onLogout}){
             {n.label}
           </button>
         ))}
+        </div>
       </nav>
     </div>
   );
