@@ -138,6 +138,26 @@ const sb = async (path, opts = {}) => {
 };
 /* ── Reloadly Integration (proxied via Supabase Edge Function) ── */
 const PROXY = `${SUPABASE_URL}/functions/v1/clever-processor`;
+/* ── smmghana.com API Integration ── */
+const SMM_API_URL = "https://smmghana.com/api/v2";
+const SMM_API_KEY = "YOUR_API_KEY_HERE"; // 🔑 Replace with your smmghana.com API key
+const SMM_PROFIT_MARGIN = 0.35; // 35% markup on all SMM services
+
+async function smmRequest(action, params = {}) {
+    const body = new URLSearchParams({ key: SMM_API_KEY, action, ...params });
+    // Direct call — smmghana.com supports CORS. If you hit CORS issues,
+    // route through a Supabase Edge Function (see /functions/v1/smm-proxy).
+    const res = await fetch(SMM_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString()
+    });
+    if (!res.ok) throw new Error("SMM API error: " + res.statusText);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+}
+
 async function rlFetch(product, path, opts = {}) {
     const res = await fetch(`${PROXY}?product=${product}&path=${encodeURIComponent(path)}`, {
         method: opts.method || "GET",
@@ -1706,31 +1726,31 @@ function DashSocialTab({ reseller, showToast, fetchData }) {
     const unitPrice = basePrice / (selectedSvc ? selectedSvc.per : 1000);
     const totalCost = parseFloat((unitPrice * socialForm.qty).toFixed(2));
     const handleSocialOrder = async () => {
-        if (!socialForm.serviceId) {
-            showToast("Select a service", "error");
-            return;
-        }
-        if (!socialForm.link.trim() && !socialForm.username.trim()) {
-            showToast("Enter link or username", "error");
-            return;
-        }
-        if (socialForm.qty < 100) {
-            showToast("Minimum quantity is 100", "error");
-            return;
-        }
-        if ((reseller.wallet_balance || 0) < totalCost) {
-            showToast("Insufficient wallet balance", "error");
-            return;
-        }
+        if (!socialForm.serviceId) { showToast("Select a service", "error"); return; }
+        if (!socialForm.link.trim() && !socialForm.username.trim()) { showToast("Enter link or username", "error"); return; }
+        if (socialForm.qty < 100) { showToast("Minimum quantity is 100", "error"); return; }
+        if ((reseller.wallet_balance || 0) < totalCost) { showToast("Insufficient wallet balance", "error"); return; }
         setSocialLoading(true);
+        const target = socialForm.link.trim() || socialForm.username.trim();
         try {
+            // 1. Place real order on smmghana.com (deducting our cost = base price without margin)
+            const baseCost = parseFloat((selectedSvc.basePriceGHS / selectedSvc.per * socialForm.qty).toFixed(2));
+            const smmResult = await smmRequest("add", {
+                service: selectedSvc.smmServiceId,
+                link: target,
+                quantity: String(socialForm.qty)
+            });
+            const smmOrderId = smmResult.order ? String(smmResult.order) : "N/A";
+            // 2. Deduct reseller wallet (charged at our marked-up price) and record
             await sb(`resellers?id=eq.${reseller.id}`, { method: "PATCH", prefer: "return=representation",
-                body: JSON.stringify({ wallet_balance: (reseller.wallet_balance || 0) - totalCost, total_sales: (reseller.total_sales || 0) + totalCost, total_customers: (reseller.total_customers || 0) + 1 }) });
+                body: JSON.stringify({ wallet_balance: parseFloat(((reseller.wallet_balance || 0) - totalCost).toFixed(2)),
+                    total_sales: (reseller.total_sales || 0) + totalCost, total_customers: (reseller.total_customers || 0) + 1 }) });
             await sb("transactions", { method: "POST", prefer: "return=representation",
                 body: JSON.stringify({ reseller_id: reseller.id, network: "Social",
-                    bundle: `${selectedSvc.platform} — ${selectedSvc.name} x${socialForm.qty} | ${socialForm.link || socialForm.username}`,
-                    amount: totalCost, customer_phone: socialForm.link || socialForm.username, status: "success", type: "social_order" }) });
-            showToast(`✅ ${selectedSvc.name} order placed!`);
+                    bundle: `${selectedSvc.platform} — ${selectedSvc.name} x${socialForm.qty} | ${target}`,
+                    amount: totalCost, customer_phone: target, status: "success", type: "social_order",
+                    order_ref: "SMM-" + smmOrderId, payment_ref: smmOrderId }) });
+            showToast(`✅ Order placed! SMM ID: ${smmOrderId}`);
             setSocialForm({ serviceId: "", qty: 1000, link: "", username: "", note: "" });
             fetchData();
         }
@@ -1806,34 +1826,65 @@ function DashSocialTab({ reseller, showToast, fetchData }) {
                 React.createElement("span", { className: "spinner" }),
                 " Placing Order\u2026") : "📱 Place Social Order")))));
 }
-/* ── Social Media Services ── */
+/* ── Social Media Services (powered by smmghana.com) ──
+   smmServiceId: the real service ID from smmghana.com /api/v2 action=services
+   basePriceGHS: what smmghana.com charges YOU (their rate)
+   Displayed price to reseller/customer = basePriceGHS × (1 + SMM_PROFIT_MARGIN)
+   ── */
 const SOCIAL_SERVICES = [
-    // Instagram GHS-priced (prices per 1,000 units)
-    { id: "ig_post_share", category: "Instagram", platform: "Instagram", name: "Post Share", priceGHS: 2.4717, per: 1000, unit: "Shares", icon: "📤", color: "#E1306C" },
-    { id: "ig_post_saves", category: "Instagram", platform: "Instagram", name: "Post Saves [Instant]", priceGHS: 3.1073, per: 1000, unit: "Saves", icon: "🔖", color: "#E1306C" },
-    { id: "ig_likes_cheap", category: "Instagram", platform: "Instagram", name: "Likes | Cheapest", priceGHS: 5.1414, per: 1000, unit: "Likes", icon: "❤️", color: "#E1306C" },
-    { id: "ig_likes_mid", category: "Instagram", platform: "Instagram", name: "Likes | Cheap", priceGHS: 8.4744, per: 1000, unit: "Likes", icon: "❤️", color: "#E1306C" },
-    { id: "ig_likes_nd", category: "Instagram", platform: "Instagram", name: "Likes | Non Drop", priceGHS: 12.1378, per: 1000, unit: "Likes", icon: "❤️", color: "#E1306C" },
-    { id: "ig_followers_1", category: "Instagram", platform: "Instagram", name: "Followers [Cheapest] ~ REFILL 365D", priceGHS: 17.655, per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
-    { id: "ig_followers_2", category: "Instagram", platform: "Instagram", name: "Followers [Cheapest] ~ 1k/day ~ REFILL 30D", priceGHS: 28.6894, per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
-    { id: "ig_followers_3", category: "Instagram", platform: "Instagram", name: "Followers [Working] [Flag OFF] ~ REFILL 365D", priceGHS: 29.425, per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
-    { id: "ig_followers_4", category: "Instagram", platform: "Instagram", name: "Followers [Cheapest] ~ 10k/day ~ REFILL 30D", priceGHS: 43.0341, per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
-    // General/TikTok GHS-priced
-    { id: "gen_live_views", category: "General", platform: "TikTok/General", name: "Live Views", priceGHS: 2, per: 1000, unit: "Views", icon: "👁️", color: "#00e5ff" },
-    { id: "gen_battle_pts", category: "General", platform: "TikTok/General", name: "Battle Points", priceGHS: 2, per: 1000, unit: "Points", icon: "⚔️", color: "#00e5ff" },
-    { id: "gen_comment_lk", category: "General", platform: "TikTok/General", name: "Comment Likes", priceGHS: 2, per: 100, unit: "Likes", icon: "💬", color: "#00e5ff" },
-    { id: "gen_add_fav", category: "General", platform: "TikTok/General", name: "Add Favorites", priceGHS: 3, per: 1000, unit: "Favs", icon: "⭐", color: "#00e5ff" },
-    { id: "gen_views_cheap", category: "General", platform: "TikTok/General", name: "Views (Cheap)", priceGHS: 5, per: 1000, unit: "Views", icon: "👁️", color: "#7b61ff" },
-    { id: "gen_live_likes", category: "General", platform: "TikTok/General", name: "Live Likes", priceGHS: 5, per: 1000, unit: "Likes", icon: "❤️", color: "#7b61ff" },
-    { id: "gen_views_best", category: "General", platform: "TikTok/General", name: "Views (Best Speed)", priceGHS: 7, per: 1000, unit: "Views", icon: "🚀", color: "#7b61ff" },
-    { id: "gen_likes_cheap", category: "General", platform: "TikTok/General", name: "Likes (Cheap)", priceGHS: 7, per: 1000, unit: "Likes", icon: "❤️", color: "#7b61ff" },
-    { id: "gen_likes_best", category: "General", platform: "TikTok/General", name: "Likes (Best Speed)", priceGHS: 8, per: 1000, unit: "Likes", icon: "❤️", color: "#7b61ff" },
-    { id: "gen_shares", category: "General", platform: "TikTok/General", name: "Shares", priceGHS: 8, per: 1000, unit: "Shares", icon: "↗️", color: "#7b61ff" },
-    { id: "gen_story_views", category: "General", platform: "TikTok/General", name: "Story Views", priceGHS: 18, per: 1000, unit: "Views", icon: "🎞️", color: "#7b61ff" },
-    { id: "gen_followers", category: "General", platform: "TikTok/General", name: "Followers ⭐", priceGHS: 28, per: 100, unit: "Followers", icon: "👥", color: "#7b61ff" },
+     // Instagram
+    { id: "ig_reel_views_1",   smmServiceId: "435", category: "Instagram", platform: "Instagram", name: "Video / Reel Views | Cheap",              basePriceGHS: 0.02,  per: 1000, unit: "Views",     icon: "🎬", color: "#E1306C" },
+    { id: "ig_reel_views_2",   smmServiceId: "116", category: "Instagram", platform: "Instagram", name: "Video / Reel Views | Cheapest",           basePriceGHS: 0.03,  per: 1000, unit: "Views",     icon: "🎬", color: "#E1306C" },
+    { id: "ig_story_views_1",  smmServiceId: "117", category: "Instagram", platform: "Instagram", name: "Story Views | Cheap",                     basePriceGHS: 0.13,  per: 1000, unit: "Views",     icon: "🎞️", color: "#E1306C" },
+    { id: "ig_story_views_2",  smmServiceId: "393", category: "Instagram", platform: "Instagram", name: "Story Viewers | All",                     basePriceGHS: 0.57,  per: 1000, unit: "Views",     icon: "🎞️", color: "#E1306C" },
+    { id: "ig_story_views_3",  smmServiceId: "394", category: "Instagram", platform: "Instagram", name: "Story Viewers HQ (All Story)",            basePriceGHS: 0.62,  per: 1000, unit: "Views",     icon: "🎞️", color: "#E1306C" },
+    { id: "ig_post_share",     smmServiceId: "235", category: "Instagram", platform: "Instagram", name: "Post Shares",                             basePriceGHS: 0.27,  per: 1000, unit: "Shares",    icon: "📤", color: "#E1306C" },
+    { id: "ig_post_saves",     smmServiceId: "234", category: "Instagram", platform: "Instagram", name: "Post Saves [Instant]",                    basePriceGHS: 0.34,  per: 1000, unit: "Saves",     icon: "🔖", color: "#E1306C" },
+    { id: "ig_likes_cheap1",   smmServiceId: "115", category: "Instagram", platform: "Instagram", name: "Likes | Cheapest",                        basePriceGHS: 0.57,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
+    { id: "ig_likes_cheap2",   smmServiceId: "285", category: "Instagram", platform: "Instagram", name: "Likes | Cheap",                           basePriceGHS: 0.94,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
+    { id: "ig_likes_nd",       smmServiceId: "220", category: "Instagram", platform: "Instagram", name: "Likes | Non Drop",                        basePriceGHS: 1.34,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
+    { id: "ig_followers_1",    smmServiceId: "392", category: "Instagram", platform: "Instagram", name: "Followers [Cheapest] ~ REFILL 365D",      basePriceGHS: 3.14,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_followers_2",    smmServiceId: "222", category: "Instagram", platform: "Instagram", name: "Followers [1k/day] ~ REFILL 30D",         basePriceGHS: 3.18,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_followers_3",    smmServiceId: "391", category: "Instagram", platform: "Instagram", name: "Followers [Flag OFF] ~ REFILL 365D",      basePriceGHS: 5.24,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_followers_4",    smmServiceId: "219", category: "Instagram", platform: "Instagram", name: "Followers HQ Real ~ REFILL 365D",         basePriceGHS: 3.91,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_followers_5",    smmServiceId: "217", category: "Instagram", platform: "Instagram", name: "Followers [10k/day] ~ REFILL 30D",        basePriceGHS: 4.77,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_rand_comments",  smmServiceId: "119", category: "Instagram", platform: "Instagram", name: "Random Comments",                         basePriceGHS: 9.40,  per: 1000, unit: "Comments",  icon: "💬", color: "#E1306C" },
+    { id: "ig_custom_comments",smmServiceId: "118", category: "Instagram", platform: "Instagram", name: "Custom Comments",                         basePriceGHS: 19.56, per: 1000, unit: "Comments",  icon: "💬", color: "#E1306C" },
+    { id: "ig_live_15",        smmServiceId: "239", category: "Instagram", platform: "Instagram", name: "Live Views [15 min]",                     basePriceGHS: 3.04,  per: 1000, unit: "Views",     icon: "🔴", color: "#E1306C" },
+    { id: "ig_live_30",        smmServiceId: "238", category: "Instagram", platform: "Instagram", name: "Live Views [30 min]",                     basePriceGHS: 6.02,  per: 1000, unit: "Views",     icon: "🔴", color: "#E1306C" },
+    { id: "ig_live_60",        smmServiceId: "240", category: "Instagram", platform: "Instagram", name: "Live Views [60 min]",                     basePriceGHS: 11.93, per: 1000, unit: "Views",     icon: "🔴", color: "#E1306C" },
+    // TikTok
+    { id: "tt_views_cheap1",   smmServiceId: "445", category: "TikTok/General", platform: "TikTok", name: "Views | Super Cheap",                   basePriceGHS: 0.33,  per: 1000, unit: "Views",     icon: "👁️", color: "#00e5ff" },
+    { id: "tt_views_cheap2",   smmServiceId: "404", category: "TikTok/General", platform: "TikTok", name: "Views | Super Cheap [Fast]",            basePriceGHS: 0.37,  per: 1000, unit: "Views",     icon: "👁️", color: "#00e5ff" },
+    { id: "tt_views_fast",     smmServiceId: "440", category: "TikTok/General", platform: "TikTok", name: "Views | FAST",                          basePriceGHS: 0.72,  per: 1000, unit: "Views",     icon: "🚀", color: "#00e5ff" },
+    { id: "tt_views_ultra",    smmServiceId: "225", category: "TikTok/General", platform: "TikTok", name: "Views | ULTRA FAST",                    basePriceGHS: 1.54,  per: 1000, unit: "Views",     icon: "⚡", color: "#00e5ff" },
+    { id: "tt_views_nd",       smmServiceId: "196", category: "TikTok/General", platform: "TikTok", name: "Views | Non Drop ~ 500k/day",           basePriceGHS: 2.01,  per: 1000, unit: "Views",     icon: "🛡️", color: "#00e5ff" },
+    { id: "tt_video_save",     smmServiceId: "215", category: "TikTok/General", platform: "TikTok", name: "Video Save",                            basePriceGHS: 0.04,  per: 1000, unit: "Saves",     icon: "🔖", color: "#00e5ff" },
+    { id: "tt_shares",         smmServiceId: "207", category: "TikTok/General", platform: "TikTok", name: "Shares",                               basePriceGHS: 0.87,  per: 1000, unit: "Shares",    icon: "↗️", color: "#00e5ff" },
+    { id: "tt_likes_cheap1",   smmServiceId: "442", category: "TikTok/General", platform: "TikTok", name: "Likes | Speed",                        basePriceGHS: 0.70,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
+    { id: "tt_likes_cheap2",   smmServiceId: "224", category: "TikTok/General", platform: "TikTok", name: "Likes | Super Cheap",                  basePriceGHS: 0.80,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
+    { id: "tt_likes_nd1",      smmServiceId: "444", category: "TikTok/General", platform: "TikTok", name: "Likes | Real Non Drop",                basePriceGHS: 3.27,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
+    { id: "tt_likes_nd2",      smmServiceId: "441", category: "TikTok/General", platform: "TikTok", name: "Likes | Real Non Drop ~ Lifetime",     basePriceGHS: 4.86,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
+    { id: "tt_story_views",    smmServiceId: "209", category: "TikTok/General", platform: "TikTok", name: "Story Viewers [All Stories]",           basePriceGHS: 1.83,  per: 1000, unit: "Views",     icon: "🎞️", color: "#7b61ff" },
+    { id: "tt_add_fav",        smmServiceId: "229", category: "TikTok/General", platform: "TikTok", name: "Add Favorites | REFILL 365D",           basePriceGHS: 0.19,  per: 1000, unit: "Favs",      icon: "⭐", color: "#7b61ff" },
+    { id: "tt_followers_1",    smmServiceId: "382", category: "TikTok/General", platform: "TikTok", name: "Followers | HQ Accounts",              basePriceGHS: 2.92,  per: 1000, unit: "Followers", icon: "👥", color: "#7b61ff" },
+    { id: "tt_followers_2",    smmServiceId: "380", category: "TikTok/General", platform: "TikTok", name: "Followers | No Refill",                basePriceGHS: 5.74,  per: 1000, unit: "Followers", icon: "👥", color: "#7b61ff" },
+    { id: "tt_followers_nd",   smmServiceId: "228", category: "TikTok/General", platform: "TikTok", name: "Followers | Real HQ ~ Lifetime Refill",basePriceGHS: 20.27, per: 1000, unit: "Followers", icon: "👥", color: "#7b61ff" },
+    { id: "tt_live_views_15",  smmServiceId: "353", category: "TikTok/General", platform: "TikTok", name: "Livestream Viewers [15 min]",           basePriceGHS: 2.19,  per: 1000, unit: "Views",     icon: "🔴", color: "#00e5ff" },
+    { id: "tt_live_views_30",  smmServiceId: "354", category: "TikTok/General", platform: "TikTok", name: "Livestream Viewers [30 min]",           basePriceGHS: 3.71,  per: 1000, unit: "Views",     icon: "🔴", color: "#00e5ff" },
+    { id: "tt_live_views_60",  smmServiceId: "355", category: "TikTok/General", platform: "TikTok", name: "Livestream Viewers [60 min]",           basePriceGHS: 7.43,  per: 1000, unit: "Views",     icon: "🔴", color: "#00e5ff" },
+    { id: "tt_live_likes",     smmServiceId: "199", category: "TikTok/General", platform: "TikTok", name: "Livestream Likers",                     basePriceGHS: 0.43,  per: 1000, unit: "Likes",     icon: "❤️", color: "#00e5ff" },
+    { id: "tt_battle_pts",     smmServiceId: "231", category: "TikTok/General", platform: "TikTok", name: "Live PK Battle Points",                 basePriceGHS: 1.59,  per: 1000, unit: "Points",    icon: "⚔️", color: "#00e5ff" },
+    { id: "tt_comment_lk",     smmServiceId: "198", category: "TikTok/General", platform: "TikTok", name: "Comment Likes [HQ]",                    basePriceGHS: 1.90,  per: 1000, unit: "Likes",     icon: "💬", color: "#7b61ff" },
+    // Facebook
+    { id: "fb_views_1",        smmServiceId: "348", category: "TikTok/General", platform: "Facebook", name: "Facebook Video/Reel Views",            basePriceGHS: 0.18,  per: 1000, unit: "Views",     icon: "📘", color: "#1877F2" },
+    { id: "fb_post_likes_1",   smmServiceId: "411", category: "TikTok/General", platform: "Facebook", name: "Facebook Post Likes | Cheap",          basePriceGHS: 0.76,  per: 1000, unit: "Likes",     icon: "👍", color: "#1877F2" },
+    { id: "fb_post_likes_nd",  smmServiceId: "147", category: "TikTok/General", platform: "Facebook", name: "Facebook Post Likes | Non Drop",       basePriceGHS: 1.14,  per: 1000, unit: "Likes",     icon: "👍", color: "#1877F2" },
+    { id: "fb_followers_1",    smmServiceId: "360", category: "TikTok/General", platform: "Facebook", name: "Facebook Profile/Page Followers | R30", basePriceGHS: 0.87, per: 1000, unit: "Followers", icon: "👥", color: "#1877F2" },
+    { id: "fb_page_likes",     smmServiceId: "377", category: "TikTok/General", platform: "Facebook", name: "Facebook Page Likes + Followers R30D",  basePriceGHS: 2.39, per: 1000, unit: "Likes",     icon: "👍", color: "#1877F2" },
 ];
-const USD_TO_GHS = 15.5; // approximate exchange rate
-const getSocialBasePrice = (s) => s.priceGHS !== undefined ? s.priceGHS : parseFloat((s.priceUSD * USD_TO_GHS).toFixed(2));
+// basePriceGHS = what smmghana charges us; displayed price = base × (1 + 30% margin)
+const getSocialBasePrice = (s) => parseFloat((s.basePriceGHS * (1 + SMM_PROFIT_MARGIN)).toFixed(2));
 /* ── Manual Order Entry Modal ── */
 function ManualOrderModal({ resellers, onClose, onSuccess, showToast }) {
     const [resellerId, setResellerId] = useState("");
@@ -2381,6 +2432,117 @@ function AdminRequestsTab({ resellerRequests, resellers, showToast, onRefresh })
                             opacity: updatingId === req.id ? 0.5 : 1 } }, updatingId === req.id && s === st ? React.createElement("span", { className: "spinner", style: { width: 10, height: 10 } }) : s.replace("_", " ")))))));
         })))));
 }
+/* ── Admin SMM Services Tab ── */
+function AdminSMMTab({ showToast }) {
+    const [services, setServices] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [catFilter, setCatFilter] = useState("All");
+    const [search, setSearch] = useState("");
+    const [smmBalance, setSmmBalance] = useState(null);
+    const [orderStatus, setOrderStatus] = useState({ id: "", result: null, loading: false });
+
+    const fetchServices = async () => {
+        setLoading(true);
+        try {
+            const data = await smmRequest("services");
+            if (!Array.isArray(data)) throw new Error("Unexpected response format");
+            setServices(data);
+            showToast(`✅ Loaded ${data.length} services`);
+        } catch(e) {
+            showToast("Failed: " + e.message, "error");
+        } finally { setLoading(false); }
+    };
+
+    const fetchBalance = async () => {
+        try {
+            const data = await smmRequest("balance");
+            setSmmBalance(data);
+        } catch(e) { showToast("Balance fetch failed: " + e.message, "error"); }
+    };
+
+    const checkOrderStatus = async () => {
+        if (!orderStatus.id.trim()) { showToast("Enter an order ID", "error"); return; }
+        setOrderStatus(p => ({ ...p, loading: true, result: null }));
+        try {
+            const data = await smmRequest("status", { order: orderStatus.id.trim() });
+            setOrderStatus(p => ({ ...p, result: data, loading: false }));
+        } catch(e) {
+            showToast("Status check failed: " + e.message, "error");
+            setOrderStatus(p => ({ ...p, loading: false }));
+        }
+    };
+
+    const cats = ["All", ...new Set(services.map(s => s.Category || s.category || "Other"))];
+    const filtered = services.filter(s => {
+        const cat = s.Category || s.category || "Other";
+        const name = (s.name || "").toLowerCase();
+        const id = String(s.service || s.services || "");
+        const matchCat = catFilter === "All" || cat === catFilter;
+        const matchSearch = !search || name.includes(search.toLowerCase()) || id.includes(search);
+        return matchCat && matchSearch;
+    });
+
+    const copyId = (id) => { navigator.clipboard.writeText(String(id)).catch(() => {}); showToast("ID copied: " + id); };
+
+    const statusColor = (s) => {
+        if (!s) return G.muted;
+        const st = (s.status || "").toLowerCase();
+        if (st === "completed") return G.green;
+        if (st === "in progress") return G.accent;
+        if (st === "partial") return G.gold;
+        if (st === "cancelled" || st.includes("fail")) return G.red;
+        return G.muted;
+    };
+
+    return React.createElement("div", null,
+        React.createElement("div", { className: "syne fade-up fa1", style: { fontWeight: 800, fontSize: 24, marginBottom: 6 } }, "SMM Services"),
+        React.createElement("div", { style: { color: G.muted, fontSize: 13, marginBottom: 24 } }, "Browse smmghana.com services, check order status, and verify your API balance."),
+
+        // Top action row
+        React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 } },
+            React.createElement("button", { onClick: fetchServices, disabled: loading, style: { ...btnStyle("primary"), padding: "10px 20px" } },
+                loading ? React.createElement(React.Fragment, null, React.createElement("span", { className: "spinner" }), " Loading…") : "📋 Fetch Service List"),
+            React.createElement("button", { onClick: fetchBalance, style: { ...btnStyle("ghost"), padding: "10px 20px" } }, "💰 Check SMM Balance")),
+
+        // Balance card
+        smmBalance && React.createElement("div", { style: { background: `${G.green}18`, border: `1px solid ${G.green}40`, borderRadius: 14, padding: "14px 20px", marginBottom: 20, display: "flex", gap: 16, alignItems: "center" } },
+            React.createElement("span", { style: { fontSize: 28 } }, "💰"),
+            React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: 11, color: G.muted, fontWeight: 700, letterSpacing: 0.5 } }, "SMMGHANA.COM BALANCE"),
+                React.createElement("div", { className: "syne", style: { fontSize: 22, fontWeight: 800, color: G.green } },
+                    smmBalance.balance, " ", smmBalance.currency))),
+
+        // Order status checker
+        React.createElement("div", { style: { background: G.card, border: `1px solid ${G.border}`, borderRadius: 14, padding: "18px 20px", marginBottom: 24 } },
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: G.accent, marginBottom: 12 } }, "🔍 Check Order Status"),
+            React.createElement("div", { style: { display: "flex", gap: 8 } },
+                React.createElement("input", { style: { ...inputStyle, maxWidth: 220 }, placeholder: "SMM Order ID", value: orderStatus.id, onChange: e => setOrderStatus(p => ({ ...p, id: e.target.value })), onFocus: e => e.target.style.borderColor = G.accent, onBlur: e => e.target.style.borderColor = G.border }),
+                React.createElement("button", { onClick: checkOrderStatus, disabled: orderStatus.loading, style: btnStyle("primary") }, orderStatus.loading ? "…" : "Check")),
+            orderStatus.result && React.createElement("div", { style: { marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8 } },
+                [["Status", orderStatus.result.status], ["Remains", orderStatus.result.remains], ["Start Count", orderStatus.result.start_count], ["Charge", orderStatus.result.charge + " " + (orderStatus.result.currency || "")]].map(([k, v]) =>
+                    React.createElement("div", { key: k, style: { background: G.surface, borderRadius: 10, padding: "10px 12px" } },
+                        React.createElement("div", { style: { fontSize: 9, color: G.muted, fontWeight: 700, letterSpacing: 0.4, marginBottom: 3 } }, k.toUpperCase()),
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: k === "Status" ? statusColor(orderStatus.result) : G.text } }, v || "—"))))),
+
+        // Services table
+        services.length > 0 && React.createElement(React.Fragment, null,
+            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" } },
+                React.createElement("input", { style: { ...inputStyle, maxWidth: 240, fontSize: 13 }, placeholder: "Search name or ID…", value: search, onChange: e => setSearch(e.target.value), onFocus: e => e.target.style.borderColor = G.accent, onBlur: e => e.target.style.borderColor = G.border }),
+                cats.map(c => React.createElement("button", { key: c, onClick: () => setCatFilter(c), style: { padding: "6px 14px", borderRadius: 20, border: `1px solid ${catFilter === c ? G.accent : G.border}`, background: catFilter === c ? `${G.accent}22` : "transparent", color: catFilter === c ? G.accent : G.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" } }, c))),
+            React.createElement("div", { style: { fontSize: 11, color: G.muted, marginBottom: 10 } }, filtered.length + " services shown · Tap an ID to copy it"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, filtered.map((s, i) => {
+                const id = s.service || s.services;
+                const localSvc = SOCIAL_SERVICES.find(ls => ls.smmServiceId === String(id));
+                return React.createElement("div", { key: i, style: { background: localSvc ? `${G.green}12` : G.card, border: `1px solid ${localSvc ? G.green + "40" : G.border}`, borderRadius: 12, padding: "12px 16px", display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" } },
+                    React.createElement("div", { onClick: () => copyId(id), style: { background: localSvc ? `${G.green}30` : `${G.accent}22`, color: localSvc ? G.green : G.accent, borderRadius: 8, padding: "4px 10px", fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 13, cursor: "pointer", flexShrink: 0, userSelect: "none", border: `1px solid ${localSvc ? G.green + "40" : G.accent + "40"}` } }, "#" + id),
+                    React.createElement("div", { style: { flex: 1, minWidth: 160 } },
+                        React.createElement("div", { style: { fontWeight: 600, fontSize: 13, color: G.text, marginBottom: 2 } }, s.name),
+                        React.createElement("div", { style: { fontSize: 11, color: G.muted } }, (s.Category || s.category || ""), " · min ", s.min, " · max ", s.max, " · type: ", s.type)),
+                    React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
+                        React.createElement("div", { className: "syne", style: { fontWeight: 800, fontSize: 14, color: G.gold } }, s.rate, " GHS/1k"),
+                        localSvc && React.createElement("div", { style: { fontSize: 10, color: G.green, fontWeight: 700, marginTop: 2 } }, "✓ Mapped in app")));
+            }))));
+}
 function AdminPanel({ onLogout }) {
     const [tab, setTab] = useState("dashboard");
     const [resellers, setResellers] = useState([]);
@@ -2520,6 +2682,7 @@ function AdminPanel({ onLogout }) {
         { id: "orders", icon: "📋", label: "Orders" },
         { id: "withdrawals", icon: "💸", label: "Withdrawals" },
         { id: "pricing", icon: "💲", label: "Pricing" },
+        { id: "smm", icon: "📱", label: "SMM Services" },
         { id: "requests", icon: "💡", label: "Requests" },
         { id: "tools", icon: "🛠️", label: "Tools" },
     ];
@@ -2817,6 +2980,7 @@ function AdminPanel({ onLogout }) {
                                     hasOverride ? " (override)" : " (markup)")));
                         }))))))),
                 tab === "requests" && (React.createElement(AdminRequestsTab, { resellerRequests: resellerRequests, resellers: resellers, showToast: showToast, onRefresh: fetchAll })),
+                tab === "smm" && (React.createElement(AdminSMMTab, { showToast: showToast })),
                 tab === "tools" && (React.createElement(React.Fragment, null,
                     React.createElement("div", { className: "syne fade-up fa1", style: { fontWeight: 800, fontSize: 24, marginBottom: 24 } }, "Admin Tools"),
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 } },
@@ -3862,22 +4026,37 @@ function StoreFront({ slug }) {
         }
     };
     const recordSocialOrder = async (paystackRef) => {
-        if (!socialSelected)
-            return;
+        if (!socialSelected) return;
         const baseP = getSocialBasePrice(socialSelected);
         const unitP = baseP / socialSelected.per;
         const total = parseFloat((unitP * socialQty).toFixed(2));
         const target = socialLink || socialUsername;
         const bundleStr = socialSelected.platform + " — " + socialSelected.name + " x" + socialQty + " | " + target;
         const orderId = genOrderId();
+        let smmOrderId = "pending";
+        try {
+            // Place the real SMM order
+            const smmResult = await smmRequest("add", {
+                service: socialSelected.smmServiceId,
+                link: target,
+                quantity: String(socialQty)
+            });
+            smmOrderId = smmResult.order ? String(smmResult.order) : "N/A";
+        } catch(smmErr) {
+            console.warn("SMM order failed:", smmErr.message);
+            smmOrderId = "failed:" + smmErr.message.slice(0, 40);
+        }
         try {
             await sb("resellers?id=eq." + reseller.id, { method: "PATCH", prefer: "return=representation",
                 body: JSON.stringify({ total_sales: (reseller.total_sales || 0) + total, total_customers: (reseller.total_customers || 0) + 1 }) });
             await sb("transactions", { method: "POST", prefer: "return=representation",
-                body: JSON.stringify({ reseller_id: reseller.id, network: "Social", bundle: bundleStr, amount: total, customer_phone: target, customer_email: email || null, status: "pending", type: "social_order", payment_ref: paystackRef, order_ref: orderId }) });
-            setSocialDone({ bundle: bundleStr, target, amount: total, orderId });
-        }
-        catch (e) {
+                body: JSON.stringify({ reseller_id: reseller.id, network: "Social", bundle: bundleStr,
+                    amount: total, customer_phone: target, customer_email: email || null,
+                    status: smmOrderId.startsWith("failed") ? "pending" : "success",
+                    type: "social_order", payment_ref: paystackRef,
+                    order_ref: "SMM-" + smmOrderId }) });
+            setSocialDone({ bundle: bundleStr, target, amount: total, orderId: "SMM-" + smmOrderId });
+        } catch(e) {
             showToast("Order recording failed: " + e.message, "error");
         }
     };
