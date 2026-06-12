@@ -141,7 +141,7 @@ const PROXY = `${SUPABASE_URL}/functions/v1/clever-processor`;
 /* ── smmghana.com API Integration ── */
 const SMM_API_URL = "https://smmghana.com/api/v2";
 const SMM_API_KEY = "YOUR_API_KEY_HERE"; // 🔑 Replace with your smmghana.com API key
-const SMM_PROFIT_MARGIN = 0.30; // 30% markup on all SMM services
+const SMM_PROFIT_MARGIN = 0.35; // 35% markup on all SMM services
 
 async function smmRequest(action, params = {}) {
     const body = new URLSearchParams({ key: SMM_API_KEY, action, ...params });
@@ -300,14 +300,6 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
         { icon: "📊", title: "Easy Management", desc: "Track sales in one place" },
         { icon: "📱", title: "Mobile Friendly", desc: "Optimised for phones" },
     ];
-    // Base prices for the public pricing section
-    const mtnBundles = [
-        { label: "1GB", price: 4.40 }, { label: "2GB", price: 8.70 }, { label: "3GB", price: 12.80 },
-        { label: "4GB", price: 17.00 }, { label: "5GB", price: 22.00 },
-        { label: "10GB +700 Mins", price: 35.00, highlight: true, badge: "🔥 Best Deal" },
-        { label: "10GB", price: 41.00 },
-        { label: "25GB", price: 98.00 }, { label: "50GB", price: 193.00 },
-    ];
     return (React.createElement("div", { style: { minHeight: "100vh" } },
         React.createElement(Toast, { msg: buyToast.msg, type: buyToast.type }),
         buyModal && !buyDone && (React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }, onClick: e => { if (e.target === e.currentTarget)
@@ -397,7 +389,7 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
                         marginBottom: 28, maxWidth: 460, margin: "0 auto 28px" } }, "Launch your personal data store in minutes. No technical skills needed."),
                 React.createElement("div", { className: "fade-up fa4 hero-btns", style: { display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" } },
                     React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("primary")), { fontSize: 14, padding: "12px 30px", animation: "glow 2s infinite" }), onClick: onSignup }, "Create Free Account"),
-                    React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("ghost")), { fontSize: 14, padding: "12px 24px" }), onClick: () => document.getElementById("prices").scrollIntoView({ behavior: "smooth" }) }, "\uD83D\uDCF6 View Data Prices")))),
+                    )))),
         React.createElement("div", { style: { padding: "0 16px 32px", maxWidth: 700, margin: "0 auto" } },
             React.createElement("div", { className: "live-stats-grid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10 } }, [
                 { icon: "👥", label: "Active Resellers", value: liveStats.loaded ? (liveStats.resellers > 0 ? liveStats.resellers.toLocaleString() : "0") : "…", color: G.accent },
@@ -410,96 +402,6 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
                 React.createElement("div", { style: { fontSize: 22, marginBottom: 6 } }, s.icon),
                 React.createElement("div", { className: "syne", style: { fontWeight: 800, fontSize: 20, color: s.color, lineHeight: 1, marginBottom: 4 } }, s.value),
                 React.createElement("div", { style: { fontSize: 11, color: G.muted, fontWeight: 500, lineHeight: 1.3 } }, s.label)))))),
-        React.createElement("div", { style: { padding: "0 20px 40px", maxWidth: 700, margin: "0 auto" } },
-            React.createElement("div", { className: "fade-up fa5 buy-highlight-inner", onClick: () => document.getElementById("prices").scrollIntoView({ behavior: "smooth" }), style: { background: `linear-gradient(135deg,${G.accent}18,${G.accent2}14)`,
-                    border: `1.5px solid ${G.accent}35`, borderRadius: 20, padding: "20px 24px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    cursor: "pointer", transition: "transform .2s, box-shadow .2s", gap: 14,
-                    boxShadow: `0 0 40px ${G.accent}10` }, onMouseEnter: e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = `0 12px 40px ${G.accent}25`; }, onMouseLeave: e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = `0 0 40px ${G.accent}10`; } },
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 16 } },
-                    React.createElement("div", { style: { width: 52, height: 52, background: `linear-gradient(135deg,${G.accent},${G.accent2})`,
-                            borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 24, flexShrink: 0, boxShadow: `0 4px 20px ${G.accent}40` } }, "\uD83D\uDCF6"),
-                    React.createElement("div", null,
-                        React.createElement("div", { className: "syne", style: { fontWeight: 800, fontSize: 17, color: G.text, marginBottom: 3 } }, "Buy Data Bundles"),
-                        React.createElement("div", { style: { fontSize: 13, color: G.muted } }, "MTN from GHS 4.40 \u00B7 Instant delivery \u00B7 All networks"))),
-                React.createElement("div", { className: "buy-view-btn", style: { display: "flex", alignItems: "center", gap: 6, background: G.accent + "22",
-                        borderRadius: 12, padding: "8px 14px", flexShrink: 0 } },
-                    React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: G.accent } }, "View Prices"),
-                    React.createElement("svg", { width: "14", height: "14", viewBox: "0 0 14 14", fill: "none" },
-                        React.createElement("path", { d: "M5 11l4-4-4-4", stroke: G.accent, strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }))))),
-        React.createElement("div", { id: "prices", style: { padding: "40px 20px 48px", background: `${G.surface}66` } },
-            React.createElement("div", { style: { maxWidth: 700, margin: "0 auto" } },
-                React.createElement("div", { style: { textAlign: "center", marginBottom: 28 } },
-                    React.createElement("div", { style: { display: "inline-block", background: `${G.accent}18`, border: `1px solid ${G.accent}35`,
-                            color: G.accent, padding: "4px 14px", borderRadius: 100, fontSize: 11, fontWeight: 700,
-                            marginBottom: 12, letterSpacing: 0.5 } }, "\uD83D\uDCF6 CURRENT PRICES"),
-                    React.createElement("h2", { className: "syne", style: { fontSize: 26, fontWeight: 800, marginBottom: 6 } }, "Data Bundle Prices"),
-                    React.createElement("p", { style: { color: G.muted, fontSize: 13 } }, "MTN Ghana \u00B7 Base reseller prices \u00B7 Valid 30 days")),
-                React.createElement("div", { className: "mtn-prices-grid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 10, marginBottom: 20 } }, mtnBundles.map((b, i) => (React.createElement("div", { key: i, style: {
-                        background: b.highlight
-                            ? "linear-gradient(135deg,#ff6b00 0%,#ff0080 55%,#7b00ff 100%)"
-                            : G.card,
-                        border: b.highlight
-                            ? "2px solid transparent"
-                            : `1px solid ${G.border}`,
-                        borderRadius: 14,
-                        padding: "14px 16px", textAlign: "center",
-                        transition: "border .2s, transform .2s, box-shadow .2s",
-                        cursor: "pointer", display: "flex", flexDirection: "column", gap: 6,
-                        position: "relative", overflow: "hidden",
-                        boxShadow: b.highlight ? "0 0 32px rgba(255,107,0,0.45), 0 0 64px rgba(255,0,128,0.25)" : "none",
-                        animation: b.highlight ? "pulse 2s infinite" : "none"
-                    }, onMouseEnter: e => { e.currentTarget.style.transform = "translateY(-3px) scale(1.03)"; }, onMouseLeave: e => { e.currentTarget.style.transform = "none"; } },
-                    b.highlight && (React.createElement("div", { style: { position: "absolute", top: -1, left: 0, right: 0, height: 3,
-                            background: "linear-gradient(90deg,#ff6b00,#ff0080,#7b00ff,#00e5ff)",
-                            borderRadius: "14px 14px 0 0" } })),
-                    b.badge && (React.createElement("div", { style: { position: "absolute", top: 8, right: 8, background: "linear-gradient(135deg,#ff0080,#ff6b00)",
-                            color: "#fff", fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 20,
-                            letterSpacing: 0.3, boxShadow: "0 2px 8px rgba(255,0,128,0.5)" } }, b.badge)),
-                    React.createElement("div", { className: "syne", style: {
-                            fontWeight: 800,
-                            fontSize: b.highlight ? 15 : 18,
-                            color: b.highlight ? "#fff" : G.gold,
-                            marginTop: b.badge ? 10 : 0,
-                            lineHeight: 1.2
-                        } }, b.label),
-                    React.createElement("div", { style: { fontSize: 11, color: b.highlight ? "rgba(255,255,255,0.75)" : G.muted } }, "MTN Data"),
-                    React.createElement("div", { style: {
-                            background: b.highlight ? "rgba(255,255,255,0.18)" : `${G.gold}15`,
-                            borderRadius: 8, padding: "6px 0",
-                            border: b.highlight ? "1px solid rgba(255,255,255,0.3)" : "none"
-                        } },
-                        React.createElement("span", { className: "syne", style: {
-                                fontWeight: 800,
-                                fontSize: b.highlight ? 18 : 15,
-                                color: b.highlight ? "#fff" : G.text,
-                                textShadow: b.highlight ? "0 0 12px rgba(255,255,255,0.6)" : "none"
-                            } },
-                            "GHS ",
-                            b.price.toFixed(2))),
-                    React.createElement("button", { onClick: () => { setBuyModal(b); setBuyPhone(""); setBuyEmail(""); setBuyDone(null); }, style: { marginTop: 4, width: "100%", padding: "7px 0", borderRadius: 8, border: "none",
-                            background: b.highlight
-                                ? "linear-gradient(135deg,#fff,rgba(255,255,255,0.85))"
-                                : `linear-gradient(135deg,${G.gold},#ff9a3c)`,
-                            color: b.highlight ? "#c00060" : "#000",
-                            fontWeight: 800, fontSize: 12, cursor: "pointer",
-                            fontFamily: "'DM Sans',sans-serif", letterSpacing: 0.2,
-                            boxShadow: b.highlight ? "0 2px 12px rgba(255,255,255,0.4)" : "none" } }, b.highlight ? "🔥 Buy Now" : "Buy Now"))))),
-                React.createElement("div", { style: { background: G.card, border: `1px solid ${G.border}`, borderRadius: 14,
-                        padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between",
-                        flexWrap: "wrap", gap: 10, marginBottom: 24 } },
-                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
-                        React.createElement("span", { style: { fontSize: 20 } }, "\u2139\uFE0F"),
-                        React.createElement("div", null,
-                            React.createElement("div", { style: { fontWeight: 600, fontSize: 13, color: G.text } }, "Resellers set their own selling prices"),
-                            React.createElement("div", { style: { fontSize: 12, color: G.muted } }, "Prices above are base cost. Your profit = your price \u2212 base cost."))),
-                    React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("primary")), { padding: "9px 18px", fontSize: 13 }), onClick: onSignup }, "Start Reselling \u2192")),
-                React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap",
-                        background: `${G.accent2}10`, border: `1px solid ${G.accent2}25`, borderRadius: 14, padding: "12px 16px" } }, [["MTN", "#FFCD00"], ["AirtelTigo", "#FF3B30"], ["Telecel", "#007AFF"]].map(([net, col]) => (React.createElement("div", { key: net, style: { display: "flex", alignItems: "center", gap: 6 } },
-                    React.createElement("div", { style: { width: 8, height: 8, borderRadius: "50%", background: col } }),
-                    React.createElement("span", { style: { fontSize: 12, color: G.muted, fontWeight: 500 } }, net),
-                    net !== "MTN" && React.createElement("span", { style: { fontSize: 10, color: G.muted, background: `${G.muted}18`, borderRadius: 6, padding: "1px 6px" } }, "Coming soon"))))))),
         React.createElement("div", { id: "how", style: { padding: "44px 20px", maxWidth: 640, margin: "0 auto" } },
             React.createElement("div", { style: { textAlign: "center", marginBottom: 28 } },
                 React.createElement("h2", { className: "syne", style: { fontSize: 24, fontWeight: 800, marginBottom: 6 } }, "How It Works"),
@@ -1832,29 +1734,56 @@ function DashSocialTab({ reseller, showToast, fetchData }) {
    Displayed price to reseller/customer = basePriceGHS × (1 + SMM_PROFIT_MARGIN)
    ── */
 const SOCIAL_SERVICES = [
-    // Instagram
-    { id: "ig_post_share",    smmServiceId: "3",   category: "Instagram",       platform: "Instagram",     name: "Post Shares",                            basePriceGHS: 1.90,  per: 1000, unit: "Shares",    icon: "📤", color: "#E1306C" },
-    { id: "ig_post_saves",    smmServiceId: "4",   category: "Instagram",       platform: "Instagram",     name: "Post Saves [Instant]",                   basePriceGHS: 2.39,  per: 1000, unit: "Saves",     icon: "🔖", color: "#E1306C" },
-    { id: "ig_likes_cheap",   smmServiceId: "1",   category: "Instagram",       platform: "Instagram",     name: "Likes | Cheapest",                       basePriceGHS: 3.95,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
-    { id: "ig_likes_mid",     smmServiceId: "2",   category: "Instagram",       platform: "Instagram",     name: "Likes | Cheap",                          basePriceGHS: 6.52,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
-    { id: "ig_likes_nd",      smmServiceId: "5",   category: "Instagram",       platform: "Instagram",     name: "Likes | Non Drop",                       basePriceGHS: 9.34,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
-    { id: "ig_followers_1",   smmServiceId: "10",  category: "Instagram",       platform: "Instagram",     name: "Followers [Cheapest] ~ REFILL 365D",     basePriceGHS: 13.58, per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
-    { id: "ig_followers_2",   smmServiceId: "11",  category: "Instagram",       platform: "Instagram",     name: "Followers [1k/day] ~ REFILL 30D",        basePriceGHS: 22.07, per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
-    { id: "ig_followers_3",   smmServiceId: "12",  category: "Instagram",       platform: "Instagram",     name: "Followers [Flag OFF] ~ REFILL 365D",     basePriceGHS: 22.63, per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
-    { id: "ig_followers_4",   smmServiceId: "13",  category: "Instagram",       platform: "Instagram",     name: "Followers [10k/day] ~ REFILL 30D",       basePriceGHS: 33.10, per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
-    // TikTok / General
-    { id: "gen_live_views",   smmServiceId: "100", category: "TikTok/General",  platform: "TikTok/General", name: "Live Views",                            basePriceGHS: 1.54,  per: 1000, unit: "Views",     icon: "👁️", color: "#00e5ff" },
-    { id: "gen_battle_pts",   smmServiceId: "101", category: "TikTok/General",  platform: "TikTok/General", name: "Battle Points",                         basePriceGHS: 1.54,  per: 1000, unit: "Points",    icon: "⚔️", color: "#00e5ff" },
-    { id: "gen_comment_lk",   smmServiceId: "102", category: "TikTok/General",  platform: "TikTok/General", name: "Comment Likes",                         basePriceGHS: 1.54,  per: 100,  unit: "Likes",     icon: "💬", color: "#00e5ff" },
-    { id: "gen_add_fav",      smmServiceId: "103", category: "TikTok/General",  platform: "TikTok/General", name: "Add Favorites",                         basePriceGHS: 2.31,  per: 1000, unit: "Favs",      icon: "⭐", color: "#00e5ff" },
-    { id: "gen_views_cheap",  smmServiceId: "104", category: "TikTok/General",  platform: "TikTok/General", name: "Views (Cheap)",                         basePriceGHS: 3.85,  per: 1000, unit: "Views",     icon: "👁️", color: "#7b61ff" },
-    { id: "gen_live_likes",   smmServiceId: "105", category: "TikTok/General",  platform: "TikTok/General", name: "Live Likes",                            basePriceGHS: 3.85,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
-    { id: "gen_views_best",   smmServiceId: "106", category: "TikTok/General",  platform: "TikTok/General", name: "Views (Best Speed)",                    basePriceGHS: 5.38,  per: 1000, unit: "Views",     icon: "🚀", color: "#7b61ff" },
-    { id: "gen_likes_cheap",  smmServiceId: "107", category: "TikTok/General",  platform: "TikTok/General", name: "Likes (Cheap)",                         basePriceGHS: 5.38,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
-    { id: "gen_likes_best",   smmServiceId: "108", category: "TikTok/General",  platform: "TikTok/General", name: "Likes (Best Speed)",                    basePriceGHS: 6.15,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
-    { id: "gen_shares",       smmServiceId: "109", category: "TikTok/General",  platform: "TikTok/General", name: "Shares",                                basePriceGHS: 6.15,  per: 1000, unit: "Shares",    icon: "↗️", color: "#7b61ff" },
-    { id: "gen_story_views",  smmServiceId: "110", category: "TikTok/General",  platform: "TikTok/General", name: "Story Views",                           basePriceGHS: 13.85, per: 1000, unit: "Views",     icon: "🎞️", color: "#7b61ff" },
-    { id: "gen_followers",    smmServiceId: "111", category: "TikTok/General",  platform: "TikTok/General", name: "Followers ⭐",                          basePriceGHS: 21.54, per: 100,  unit: "Followers", icon: "👥", color: "#7b61ff" },
+     // Instagram
+    { id: "ig_reel_views_1",   smmServiceId: "435", category: "Instagram", platform: "Instagram", name: "Video / Reel Views | Cheap",              basePriceGHS: 0.02,  per: 1000, unit: "Views",     icon: "🎬", color: "#E1306C" },
+    { id: "ig_reel_views_2",   smmServiceId: "116", category: "Instagram", platform: "Instagram", name: "Video / Reel Views | Cheapest",           basePriceGHS: 0.03,  per: 1000, unit: "Views",     icon: "🎬", color: "#E1306C" },
+    { id: "ig_story_views_1",  smmServiceId: "117", category: "Instagram", platform: "Instagram", name: "Story Views | Cheap",                     basePriceGHS: 0.13,  per: 1000, unit: "Views",     icon: "🎞️", color: "#E1306C" },
+    { id: "ig_story_views_2",  smmServiceId: "393", category: "Instagram", platform: "Instagram", name: "Story Viewers | All",                     basePriceGHS: 0.57,  per: 1000, unit: "Views",     icon: "🎞️", color: "#E1306C" },
+    { id: "ig_story_views_3",  smmServiceId: "394", category: "Instagram", platform: "Instagram", name: "Story Viewers HQ (All Story)",            basePriceGHS: 0.62,  per: 1000, unit: "Views",     icon: "🎞️", color: "#E1306C" },
+    { id: "ig_post_share",     smmServiceId: "235", category: "Instagram", platform: "Instagram", name: "Post Shares",                             basePriceGHS: 0.27,  per: 1000, unit: "Shares",    icon: "📤", color: "#E1306C" },
+    { id: "ig_post_saves",     smmServiceId: "234", category: "Instagram", platform: "Instagram", name: "Post Saves [Instant]",                    basePriceGHS: 0.34,  per: 1000, unit: "Saves",     icon: "🔖", color: "#E1306C" },
+    { id: "ig_likes_cheap1",   smmServiceId: "115", category: "Instagram", platform: "Instagram", name: "Likes | Cheapest",                        basePriceGHS: 0.57,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
+    { id: "ig_likes_cheap2",   smmServiceId: "285", category: "Instagram", platform: "Instagram", name: "Likes | Cheap",                           basePriceGHS: 0.94,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
+    { id: "ig_likes_nd",       smmServiceId: "220", category: "Instagram", platform: "Instagram", name: "Likes | Non Drop",                        basePriceGHS: 1.34,  per: 1000, unit: "Likes",     icon: "❤️", color: "#E1306C" },
+    { id: "ig_followers_1",    smmServiceId: "392", category: "Instagram", platform: "Instagram", name: "Followers [Cheapest] ~ REFILL 365D",      basePriceGHS: 3.14,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_followers_2",    smmServiceId: "222", category: "Instagram", platform: "Instagram", name: "Followers [1k/day] ~ REFILL 30D",         basePriceGHS: 3.18,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_followers_3",    smmServiceId: "391", category: "Instagram", platform: "Instagram", name: "Followers [Flag OFF] ~ REFILL 365D",      basePriceGHS: 5.24,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_followers_4",    smmServiceId: "219", category: "Instagram", platform: "Instagram", name: "Followers HQ Real ~ REFILL 365D",         basePriceGHS: 3.91,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_followers_5",    smmServiceId: "217", category: "Instagram", platform: "Instagram", name: "Followers [10k/day] ~ REFILL 30D",        basePriceGHS: 4.77,  per: 1000, unit: "Followers", icon: "👥", color: "#E1306C" },
+    { id: "ig_rand_comments",  smmServiceId: "119", category: "Instagram", platform: "Instagram", name: "Random Comments",                         basePriceGHS: 9.40,  per: 1000, unit: "Comments",  icon: "💬", color: "#E1306C" },
+    { id: "ig_custom_comments",smmServiceId: "118", category: "Instagram", platform: "Instagram", name: "Custom Comments",                         basePriceGHS: 19.56, per: 1000, unit: "Comments",  icon: "💬", color: "#E1306C" },
+    { id: "ig_live_15",        smmServiceId: "239", category: "Instagram", platform: "Instagram", name: "Live Views [15 min]",                     basePriceGHS: 3.04,  per: 1000, unit: "Views",     icon: "🔴", color: "#E1306C" },
+    { id: "ig_live_30",        smmServiceId: "238", category: "Instagram", platform: "Instagram", name: "Live Views [30 min]",                     basePriceGHS: 6.02,  per: 1000, unit: "Views",     icon: "🔴", color: "#E1306C" },
+    { id: "ig_live_60",        smmServiceId: "240", category: "Instagram", platform: "Instagram", name: "Live Views [60 min]",                     basePriceGHS: 11.93, per: 1000, unit: "Views",     icon: "🔴", color: "#E1306C" },
+    // TikTok
+    { id: "tt_views_cheap1",   smmServiceId: "445", category: "TikTok/General", platform: "TikTok", name: "Views | Super Cheap",                   basePriceGHS: 0.33,  per: 1000, unit: "Views",     icon: "👁️", color: "#00e5ff" },
+    { id: "tt_views_cheap2",   smmServiceId: "404", category: "TikTok/General", platform: "TikTok", name: "Views | Super Cheap [Fast]",            basePriceGHS: 0.37,  per: 1000, unit: "Views",     icon: "👁️", color: "#00e5ff" },
+    { id: "tt_views_fast",     smmServiceId: "440", category: "TikTok/General", platform: "TikTok", name: "Views | FAST",                          basePriceGHS: 0.72,  per: 1000, unit: "Views",     icon: "🚀", color: "#00e5ff" },
+    { id: "tt_views_ultra",    smmServiceId: "225", category: "TikTok/General", platform: "TikTok", name: "Views | ULTRA FAST",                    basePriceGHS: 1.54,  per: 1000, unit: "Views",     icon: "⚡", color: "#00e5ff" },
+    { id: "tt_views_nd",       smmServiceId: "196", category: "TikTok/General", platform: "TikTok", name: "Views | Non Drop ~ 500k/day",           basePriceGHS: 2.01,  per: 1000, unit: "Views",     icon: "🛡️", color: "#00e5ff" },
+    { id: "tt_video_save",     smmServiceId: "215", category: "TikTok/General", platform: "TikTok", name: "Video Save",                            basePriceGHS: 0.04,  per: 1000, unit: "Saves",     icon: "🔖", color: "#00e5ff" },
+    { id: "tt_shares",         smmServiceId: "207", category: "TikTok/General", platform: "TikTok", name: "Shares",                               basePriceGHS: 0.87,  per: 1000, unit: "Shares",    icon: "↗️", color: "#00e5ff" },
+    { id: "tt_likes_cheap1",   smmServiceId: "442", category: "TikTok/General", platform: "TikTok", name: "Likes | Speed",                        basePriceGHS: 0.70,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
+    { id: "tt_likes_cheap2",   smmServiceId: "224", category: "TikTok/General", platform: "TikTok", name: "Likes | Super Cheap",                  basePriceGHS: 0.80,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
+    { id: "tt_likes_nd1",      smmServiceId: "444", category: "TikTok/General", platform: "TikTok", name: "Likes | Real Non Drop",                basePriceGHS: 3.27,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
+    { id: "tt_likes_nd2",      smmServiceId: "441", category: "TikTok/General", platform: "TikTok", name: "Likes | Real Non Drop ~ Lifetime",     basePriceGHS: 4.86,  per: 1000, unit: "Likes",     icon: "❤️", color: "#7b61ff" },
+    { id: "tt_story_views",    smmServiceId: "209", category: "TikTok/General", platform: "TikTok", name: "Story Viewers [All Stories]",           basePriceGHS: 1.83,  per: 1000, unit: "Views",     icon: "🎞️", color: "#7b61ff" },
+    { id: "tt_add_fav",        smmServiceId: "229", category: "TikTok/General", platform: "TikTok", name: "Add Favorites | REFILL 365D",           basePriceGHS: 0.19,  per: 1000, unit: "Favs",      icon: "⭐", color: "#7b61ff" },
+    { id: "tt_followers_1",    smmServiceId: "382", category: "TikTok/General", platform: "TikTok", name: "Followers | HQ Accounts",              basePriceGHS: 2.92,  per: 1000, unit: "Followers", icon: "👥", color: "#7b61ff" },
+    { id: "tt_followers_2",    smmServiceId: "380", category: "TikTok/General", platform: "TikTok", name: "Followers | No Refill",                basePriceGHS: 5.74,  per: 1000, unit: "Followers", icon: "👥", color: "#7b61ff" },
+    { id: "tt_followers_nd",   smmServiceId: "228", category: "TikTok/General", platform: "TikTok", name: "Followers | Real HQ ~ Lifetime Refill",basePriceGHS: 20.27, per: 1000, unit: "Followers", icon: "👥", color: "#7b61ff" },
+    { id: "tt_live_views_15",  smmServiceId: "353", category: "TikTok/General", platform: "TikTok", name: "Livestream Viewers [15 min]",           basePriceGHS: 2.19,  per: 1000, unit: "Views",     icon: "🔴", color: "#00e5ff" },
+    { id: "tt_live_views_30",  smmServiceId: "354", category: "TikTok/General", platform: "TikTok", name: "Livestream Viewers [30 min]",           basePriceGHS: 3.71,  per: 1000, unit: "Views",     icon: "🔴", color: "#00e5ff" },
+    { id: "tt_live_views_60",  smmServiceId: "355", category: "TikTok/General", platform: "TikTok", name: "Livestream Viewers [60 min]",           basePriceGHS: 7.43,  per: 1000, unit: "Views",     icon: "🔴", color: "#00e5ff" },
+    { id: "tt_live_likes",     smmServiceId: "199", category: "TikTok/General", platform: "TikTok", name: "Livestream Likers",                     basePriceGHS: 0.43,  per: 1000, unit: "Likes",     icon: "❤️", color: "#00e5ff" },
+    { id: "tt_battle_pts",     smmServiceId: "231", category: "TikTok/General", platform: "TikTok", name: "Live PK Battle Points",                 basePriceGHS: 1.59,  per: 1000, unit: "Points",    icon: "⚔️", color: "#00e5ff" },
+    { id: "tt_comment_lk",     smmServiceId: "198", category: "TikTok/General", platform: "TikTok", name: "Comment Likes [HQ]",                    basePriceGHS: 1.90,  per: 1000, unit: "Likes",     icon: "💬", color: "#7b61ff" },
+    // Facebook
+    { id: "fb_views_1",        smmServiceId: "348", category: "TikTok/General", platform: "Facebook", name: "Facebook Video/Reel Views",            basePriceGHS: 0.18,  per: 1000, unit: "Views",     icon: "📘", color: "#1877F2" },
+    { id: "fb_post_likes_1",   smmServiceId: "411", category: "TikTok/General", platform: "Facebook", name: "Facebook Post Likes | Cheap",          basePriceGHS: 0.76,  per: 1000, unit: "Likes",     icon: "👍", color: "#1877F2" },
+    { id: "fb_post_likes_nd",  smmServiceId: "147", category: "TikTok/General", platform: "Facebook", name: "Facebook Post Likes | Non Drop",       basePriceGHS: 1.14,  per: 1000, unit: "Likes",     icon: "👍", color: "#1877F2" },
+    { id: "fb_followers_1",    smmServiceId: "360", category: "TikTok/General", platform: "Facebook", name: "Facebook Profile/Page Followers | R30", basePriceGHS: 0.87, per: 1000, unit: "Followers", icon: "👥", color: "#1877F2" },
+    { id: "fb_page_likes",     smmServiceId: "377", category: "TikTok/General", platform: "Facebook", name: "Facebook Page Likes + Followers R30D",  basePriceGHS: 2.39, per: 1000, unit: "Likes",     icon: "👍", color: "#1877F2" },
 ];
 // basePriceGHS = what smmghana charges us; displayed price = base × (1 + 30% margin)
 const getSocialBasePrice = (s) => parseFloat((s.basePriceGHS * (1 + SMM_PROFIT_MARGIN)).toFixed(2));
