@@ -5,25 +5,68 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>DataResell Pro</title>
 
-<!-- React + Babel (CDN) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-
-<!-- Fonts -->
+<!-- Preconnect speeds up font + CDN DNS resolution -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Clash+Display:wght@500;600;700&display=swap" rel="stylesheet"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com"/>
 
-<!-- Paystack -->
-<script src="https://js.paystack.co/v1/inline.js"></script>
+<!-- Fonts: trimmed to only weights actually used (saves ~40KB) -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 
-<!-- App styles -->
+<!-- App styles (inline-critical or loaded first) -->
 <link rel="stylesheet" href="style.css"/>
+
+<!-- Loading screen shown instantly while scripts load -->
+<style>
+  body{margin:0;background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',sans-serif;}
+  #splash{position:fixed;inset:0;background:#0a0f1e;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;z-index:9999;gap:16px;}
+  #splash .logo{width:48px;height:48px;background:linear-gradient(135deg,#00e5ff,#7b61ff);
+    border-radius:14px;display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:22px;color:#fff;font-family:'Syne',sans-serif;}
+  #splash .name{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;
+    background:linear-gradient(135deg,#00e5ff,#7b61ff);-webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;}
+  #splash .bar{width:120px;height:3px;background:#1e2d45;border-radius:99px;overflow:hidden;}
+  #splash .fill{height:100%;width:0;background:linear-gradient(90deg,#00e5ff,#7b61ff);
+    border-radius:99px;animation:load 1.8s ease forwards;}
+  @keyframes load{0%{width:0}60%{width:70%}100%{width:100%}}
+</style>
 </head>
 <body>
+
+<!-- Instant splash shown while JS loads -->
+<div id="splash">
+  <div class="logo">D</div>
+  <div class="name">DataResell Pro</div>
+  <div class="bar"><div class="fill"></div></div>
+</div>
+
 <div id="root"></div>
 
-<!-- App logic (JSX compiled in-browser via Babel standalone) -->
-<script type="text/babel" src="app.js"></script>
+<!-- React -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+
+<!-- Babel (needed for JSX) — loaded after React -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<!-- Paystack -->
+<script src="https://js.paystack.co/v1/inline.js" defer></script>
+
+<!-- App -->
+<script type="text/babel" src="app.js" data-presets="react" data-type="module"></script>
+
+<script>
+  // Hide splash once React mounts
+  const observer = new MutationObserver(()=>{
+    if(document.querySelector('#root > *')){
+      const s = document.getElementById('splash');
+      if(s){ s.style.opacity='0'; s.style.transition='opacity 0.4s'; setTimeout(()=>s.remove(),450); }
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.getElementById('root'),{childList:true});
+</script>
 </body>
 </html>
