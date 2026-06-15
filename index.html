@@ -8,15 +8,16 @@
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<!-- Load fonts without blocking render -->
-<link rel="preload" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
-<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
-<!-- Paystack loaded on-demand at payment time, not at page load -->
+<!-- React (production, no Babel needed) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://js.paystack.co/v1/inline.js"></script>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
+body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:#0a0f1e}
 ::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:3px}
@@ -89,16 +90,16 @@ body::before{
 #loader{position:fixed;inset:0;background:#0a0f1e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:99999;transition:opacity .4s ease}
 #loader.hidden{opacity:0;pointer-events:none}
 .ld-spin{width:44px;height:44px;border:3px solid rgba(0,229,255,.15);border-top-color:#00e5ff;border-radius:50%;animation:spin .7s linear infinite}
-.ld-text{color:#6b7fa3;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:500;letter-spacing:0.3px}
+.ld-text{color:#6b7fa3;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;letter-spacing:0.3px}
 
 /* Storefront-specific styles */
-.sf-body{background:linear-gradient(145deg,#0d0d1a 0%,#0f1628 50%,#0a1020 100%);min-height:100vh;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+.sf-body{background:linear-gradient(145deg,#0d0d1a 0%,#0f1628 50%,#0a1020 100%);min-height:100vh;font-family:'DM Sans',sans-serif;}
 .sf-net-card{background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.08);border-radius:20px;padding:20px 22px;display:flex;align-items:center;gap:18;cursor:pointer;transition:all .25s cubic-bezier(0.34,1.56,0.64,1);backdrop-filter:blur(10px);}
 .sf-net-card:hover{transform:translateY(-4px) scale(1.01);border-color:rgba(255,255,255,0.2);box-shadow:0 20px 60px rgba(0,0,0,0.4);}
 .sf-bundle-card{border-radius:18px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:all .2s cubic-bezier(0.34,1.56,0.64,1);position:relative;overflow:hidden;}
 .sf-bundle-card:hover{transform:translateY(-3px) scale(1.01);}
-.sf-buy-btn{border:none;border-radius:12px;padding:10px 24px;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.3px;}
-.paystack-btn{width:100%;padding:17px;border-radius:16px;border:none;font-weight:800;font-size:17px;cursor:pointer;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:0.3px;position:relative;overflow:hidden;}
+.sf-buy-btn{border:none;border-radius:12px;padding:10px 24px;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;letter-spacing:0.3px;}
+.paystack-btn{width:100%;padding:17px;border-radius:16px;border:none;font-weight:800;font-size:17px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:0.3px;position:relative;overflow:hidden;}
 .paystack-btn::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);transform:translateX(-100%);transition:transform .5s;}
 .paystack-btn:hover::after{transform:translateX(100%);}
 
@@ -118,10 +119,7 @@ body::before{
 <body>
 <div id="loader"><div class="ld-spin"></div><div class="ld-text">Loading…</div></div>
 <div id="root"></div>
-<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin defer></script>
-<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin defer></script>
 <script>
-window.addEventListener("load", function() {
 "use strict";
 const { useState, useEffect, useCallback } = React;
 const SUPABASE_URL = "https://lbflhbogfhtnjjnxjntb.supabase.co";
@@ -153,7 +151,6 @@ async function rlFetch(product, path, opts = {}) {
     }
     return res.json();
 }
-const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
 const slugify = s => s.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
 const fmt = n => new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 const genOrderId = () => "ORD-" + Math.random().toString(36).slice(2, 6).toUpperCase() + Date.now().toString(36).slice(-3).toUpperCase();
@@ -212,6 +209,7 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
     const [buyBusy, setBuyBusy] = useState(false);
     const [buyDone, setBuyDone] = useState(null);
     const [buyToast, setBuyToast] = useState({ msg: "", type: "" });
+    const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
     const PLATFORM_RESELLER_ID = null; // orders go directly, no specific reseller
     const showBuyToast = (msg, type = "success") => {
         setBuyToast({ msg, type });
@@ -222,8 +220,11 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
             showBuyToast("Enter your phone number", "error");
             return;
         }
+        if (!window.PaystackPop) {
+            showBuyToast("Payment system not loaded", "error");
+            return;
+        }
         setBuyBusy(true);
-        window.loadPaystack(() => {
         const ref = "_DIRECT_" + Date.now();
         const handler = window.PaystackPop.setup({
             key: PAYSTACK_PK,
@@ -247,7 +248,6 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
             onClose: () => { showBuyToast("Payment cancelled", "error"); setBuyBusy(false); }
         });
         handler.openIframe();
-        });
     };
     useEffect(() => {
         // Use Prefer: count=exact so we get a header, not all rows
@@ -863,46 +863,16 @@ function Dashboard({ reseller: init, onLogout }) {
             setBuying(false);
         }
     };
-    const [fundAmount, setFundAmount] = useState("");
-    const [fundBusy, setFundBusy] = useState(false);
-    const [showFundModal, setShowFundModal] = useState(false);
-    const fundWallet = () => {
-        const amt = parseFloat(fundAmount);
-        if (!amt || amt < 1) { showToast("Enter a valid amount (min GHS 1)", "error"); return; }
-        setFundBusy(true);
-        window.loadPaystack(() => {
-        const ref = "_FUND_" + reseller.id + "_" + Date.now();
-        const handler = window.PaystackPop.setup({
-            key: PAYSTACK_PK,
-            email: reseller.email || reseller.phone_number + "@dataresell.pro",
-            amount: Math.round(amt * 100),
-            currency: "GHS",
-            ref,
-            metadata: { custom_fields: [
-                { display_name: "Reseller", variable_name: "reseller", value: reseller.store_name },
-                { display_name: "Phone", variable_name: "phone", value: reseller.phone_number },
-                { display_name: "Type", variable_name: "type", value: "wallet_topup" }
-            ]},
-            callback: async (response) => {
-                try {
-                    const newBal = (reseller.wallet_balance || 0) + amt;
-                    await sb(`resellers?id=eq.${reseller.id}`, { method: "PATCH", prefer: "return=representation",
-                        body: JSON.stringify({ wallet_balance: newBal }) });
-                    await sb("transactions", { method: "POST", prefer: "return=representation",
-                        body: JSON.stringify({ reseller_id: reseller.id, network: "Wallet", bundle: "Wallet Top-Up", amount: amt,
-                            customer_phone: reseller.phone_number, status: "success", type: "wallet_topup",
-                            payment_ref: response.reference, order_ref: ref }) });
-                    showToast(`✅ GHS ${amt.toFixed(2)} added to your wallet!`);
-                    setFundAmount("");
-                    setShowFundModal(false);
-                    fetchData();
-                } catch (e) { showToast("Balance update failed: " + e.message, "error"); }
-                finally { setFundBusy(false); }
-            },
-            onClose: () => { showToast("Top-up cancelled", "error"); setFundBusy(false); }
-        });
-        handler.openIframe();
-        });
+    const fundWallet = async () => {
+        try {
+            await sb(`resellers?id=eq.${reseller.id}`, { method: "PATCH", prefer: "return=representation",
+                body: JSON.stringify({ wallet_balance: (reseller.wallet_balance || 0) + 50 }) });
+            showToast("GHS 50.00 added to wallet (demo)");
+            fetchData();
+        }
+        catch (_a) {
+            showToast("Failed", "error");
+        }
     };
     // Load prices from Supabase on mount
     useEffect(() => {
@@ -1020,22 +990,8 @@ function Dashboard({ reseller: init, onLogout }) {
     const allNavItems = [...navItems, { id: "orders", icon: "📦", label: "My Orders" }];
     return (React.createElement("div", { style: { minHeight: "100vh", display: "flex", flexDirection: "column" } },
         React.createElement(Toast, { msg: toast.msg, type: toast.type }),
-        showFundModal && (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", backdropFilter: "blur(8px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } },
-            React.createElement("div", { style: { background: G.card, border: `1px solid ${G.green}40`, borderRadius: 20, padding: 32, width: "100%", maxWidth: 400, position: "relative", animation: "fadeUp .3s ease" } },
-                React.createElement("button", { onClick: () => { setShowFundModal(false); setFundAmount(""); }, style: { position: "absolute", top: 14, right: 16, background: "none", border: "none", color: G.muted, cursor: "pointer", fontSize: 22 } }, "✕"),
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 24 } },
-                    React.createElement("div", { style: { width: 48, height: 48, background: `${G.green}22`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 } }, "💳"),
-                    React.createElement("div", null,
-                        React.createElement("div", { className: "syne", style: { fontWeight: 800, fontSize: 17, color: G.green } }, "Fund Wallet via Paystack"),
-                        React.createElement("div", { style: { fontSize: 13, color: G.muted } }, `Current balance: ${fmt(reseller.wallet_balance)}`))),
-                React.createElement("div", { style: { marginBottom: 8 } },
-                    React.createElement("label", { style: { fontSize: 13, fontWeight: 600, color: G.muted, display: "block", marginBottom: 7 } }, "Amount to add (GHS)"),
-                    React.createElement("input", { style: inputStyle, type: "number", min: "1", step: "0.01", placeholder: "e.g. 100.00", value: fundAmount, onChange: e => setFundAmount(e.target.value), onFocus: ev => ev.target.style.borderColor = G.green, onBlur: ev => ev.target.style.borderColor = G.border, onKeyDown: e => e.key === "Enter" && fundWallet() })),
-                React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 20 } }, [20, 50, 100, 200].map(v => (React.createElement("button", { key: v, onClick: () => setFundAmount(String(v)), style: { flex: 1, padding: "7px 4px", borderRadius: 8, border: `1px solid ${parseFloat(fundAmount) === v ? G.green : G.border}`, background: parseFloat(fundAmount) === v ? `${G.green}20` : "transparent", color: parseFloat(fundAmount) === v ? G.green : G.muted, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" } }, `GHS ${v}`)))),
-                React.createElement("div", { style: { display: "flex", gap: 10 } },
-                    React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("ghost")), { flex: 1, padding: 13 }), onClick: () => { setShowFundModal(false); setFundAmount(""); } }, "Cancel"),
-                    React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("green")), { flex: 2, padding: 13, fontSize: 15, opacity: fundBusy ? 0.7 : 1 }), onClick: fundWallet, disabled: fundBusy }, fundBusy ? React.createElement(React.Fragment, null, React.createElement("span", { className: "spinner" }), " Processing…") : `💳 Pay GHS ${parseFloat(fundAmount) > 0 ? parseFloat(fundAmount).toFixed(2) : "0.00"} via Paystack`)))))),
         React.createElement("header", { style: {
+                background: "rgba(5,7,16,0.95)",
                 backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
                 borderBottom: "1px solid rgba(0,255,198,0.06)",
                 boxShadow: "0 2px 20px rgba(0,0,0,0.5)",
@@ -1090,7 +1046,7 @@ function Dashboard({ reseller: init, onLogout }) {
                             React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16,
                                     background: "linear-gradient(90deg,#0ff4c6,#00d68f)",
                                     WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } }, fmt(reseller.wallet_balance))),
-                        React.createElement("button", { onClick: () => setShowFundModal(true), style: { padding: "5px 10px", borderRadius: 8, border: "1px solid rgba(0,255,198,0.3)",
+                        React.createElement("button", { onClick: fundWallet, style: { padding: "5px 10px", borderRadius: 8, border: "1px solid rgba(0,255,198,0.3)",
                                 background: "rgba(0,255,198,0.1)", color: "#0ff4c6",
                                 cursor: "pointer", fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" } }, "+ Fund"))),
                 allNavItems.map(n => {
@@ -1237,7 +1193,7 @@ function Dashboard({ reseller: init, onLogout }) {
                         React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("primary")), { width: "100%", padding: 15, fontSize: 16 }), onClick: handleBuy, disabled: buying }, buying ? React.createElement(React.Fragment, null,
                             React.createElement("span", { className: "spinner" }),
                             " Processing\u2026") : "Send Data Bundle"),
-                        React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("green")), { width: "100%", padding: 13, fontSize: 15 }), onClick: () => setShowFundModal(true) }, "💳 Fund Wallet via Paystack")))),
+                        React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("green")), { width: "100%", padding: 13, fontSize: 15 }), onClick: fundWallet }, "+ Fund Wallet (Demo +GHS50)")))),
                 tab === "social" && React.createElement(DashSocialTab, { reseller: reseller, showToast: showToast, fetchData: fetchData }),
                 tab === "orders" && (React.createElement("div", null,
                     React.createElement("div", { className: "syne fade-up fa1", style: { fontWeight: 700, fontSize: 18, marginBottom: 4 } }, "My Orders"),
@@ -3865,6 +3821,7 @@ function StoreFront({ slug }) {
     const [done, setDone] = useState(null);
     const [toast, setToast] = useState({ msg: "", type: "" });
     const [resellerPrices, setResellerPrices] = useState({});
+    const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
     const showToast = (msg, type = "success") => {
         setToast({ msg, type });
         setTimeout(() => setToast({ msg: "", type: "" }), 3500);
@@ -3982,8 +3939,11 @@ function StoreFront({ slug }) {
             showToast("Select a plan, upload numbers, and write a message", "error");
             return;
         }
+        if (!window.PaystackPop) {
+            showToast("Payment system not ready", "error");
+            return;
+        }
         setSfSmsBusy(true);
-        window.loadPaystack(() => {
         const ref = "_SMS_" + Date.now();
         const handler = window.PaystackPop.setup({
             key: PAYSTACK_PK,
@@ -4010,7 +3970,6 @@ function StoreFront({ slug }) {
             onClose: () => { showToast("Payment cancelled", "error"); setSfSmsBusy(false); }
         });
         handler.openIframe();
-        }); // end loadPaystack
     };
     const sfTabList = [
         { id: "bundles", icon: "📡", label: "Data Bundles" },
@@ -4066,7 +4025,10 @@ function StoreFront({ slug }) {
         }
     };
     const launchPaystack = (amount, onSuccess, meta = {}) => {
-        window.loadPaystack(() => {
+        if (!window.PaystackPop) {
+            showToast("Payment system not loaded", "error");
+            return;
+        }
         const ref = "_G" + reseller.store_name.replace(/\s+/g, "").toUpperCase().slice(0, 12) + "_" + Date.now();
         const handler = window.PaystackPop.setup({
             key: PAYSTACK_PK,
@@ -4079,7 +4041,6 @@ function StoreFront({ slug }) {
             onClose: () => { showToast("Payment cancelled", "error"); setBuying(false); }
         });
         handler.openIframe();
-        });
     };
     const handleBuy = () => {
         if (!selected) {
@@ -4642,8 +4603,11 @@ function BulkSMSTab({ reseller, showToast }) {
             showToast("Select a plan, upload numbers, and write a message", "error");
             return;
         }
+        if (!window.PaystackPop) {
+            showToast("Payment system not ready", "error");
+            return;
+        }
         setBusy(true);
-        window.loadPaystack(() => {
         const ref = "SMS_" + Date.now();
         const handler = window.PaystackPop.setup({
             key: PAYSTACK_PK,
@@ -4682,7 +4646,6 @@ function BulkSMSTab({ reseller, showToast }) {
             onClose: () => { showToast("Payment cancelled", "error"); setBusy(false); }
         });
         handler.openIframe();
-        }); // end loadPaystack
     };
     const reset = () => {
         setStep("upload");
@@ -4904,18 +4867,7 @@ ReactDOM.render(React.createElement(App, null), document.getElementById("root"))
         setTimeout(function () { loader.remove(); }, 400);
     }
 })();
-// Load Paystack on-demand only when first needed
-window._paystackLoading = false;
-window.loadPaystack = function(cb) {
-    if (window.PaystackPop) { if (cb) cb(); return; }
-    if (window._paystackLoading) { var t = setInterval(function(){ if (window.PaystackPop) { clearInterval(t); if (cb) cb(); } }, 100); return; }
-    window._paystackLoading = true;
-    var s = document.createElement("script");
-    s.src = "https://js.paystack.co/v1/inline.js";
-    s.onload = function() { window._paystackLoading = false; if (cb) cb(); };
-    document.head.appendChild(s);
-};
-}); // window load
 </script>
+<!-- Paystack: loaded on-demand when user initiates payment -->
 </body>
 </html>
