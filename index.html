@@ -167,7 +167,12 @@ async function rlFetch(product, path, opts = {}) {
     }
     return res.json();
 }
-const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
+// ── PAYSTACK INTEGRATION ─────────────────────────────────────────────────────
+// Replace the value below with your Paystack PUBLIC key (pk_live_… or pk_test_…).
+// Find it in: Paystack Dashboard → Settings → API Keys & Webhooks
+// ⚠️  NEVER paste your secret key (sk_live_…) here — it must only live on your server.
+const PAYSTACK_PK = "YOUR_PAYSTACK_PUBLIC_KEY_HERE";
+// ─────────────────────────────────────────────────────────────────────────────
 const slugify = s => s.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
 const fmt = n => new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 const genOrderId = () => "ORD-" + Math.random().toString(36).slice(2, 6).toUpperCase() + Date.now().toString(36).slice(-3).toUpperCase();
@@ -226,7 +231,7 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
     const [buyBusy, setBuyBusy] = useState(false);
     const [buyDone, setBuyDone] = useState(null);
     const [buyToast, setBuyToast] = useState({ msg: "", type: "" });
-    const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
+    const PAYSTACK_PK = "YOUR_PAYSTACK_PUBLIC_KEY_HERE";
     const PLATFORM_RESELLER_ID = null; // orders go directly, no specific reseller
     const showBuyToast = (msg, type = "success") => {
         setBuyToast({ msg, type });
@@ -4543,7 +4548,7 @@ function BulkSMSTab({ reseller, showToast }) {
         { id: "sms_2000", label: "2,000 SMS", count: 2000, price: 35, badge: "Popular", highlight: true },
         { id: "sms_4000", label: "4,000 SMS", count: 4000, price: 50, badge: "Best Value" },
     ];
-    const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
+    const PAYSTACK_PK = "YOUR_PAYSTACK_PUBLIC_KEY_HERE";
     const [step, setStep] = React.useState("upload"); // upload | compose | preview | smsDone
     const [selectedPlan, setSelectedPlan] = React.useState(null);
     const [contacts, setContacts] = React.useState([]); // [{num}]
