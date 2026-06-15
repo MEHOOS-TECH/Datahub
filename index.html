@@ -13,7 +13,17 @@
 <!-- React (production, no Babel needed) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://js.paystack.co/v1/inline.js"></script>
+<script>
+(function loadPaystack(attempt) {
+    var s = document.createElement('script');
+    s.src = 'https://js.paystack.co/v1/inline.js';
+    s.async = false;
+    s.onerror = function() {
+        if (attempt < 4) setTimeout(function() { loadPaystack(attempt + 1); }, attempt * 1000);
+    };
+    document.head.appendChild(s);
+})(1);
+</script>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -220,12 +230,18 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
             showBuyToast("Enter your phone number", "error");
             return;
         }
+        setBuyBusy(true);
         if (!window.PaystackPop) {
-            showBuyToast("Payment system not loaded", "error");
+            let tries = 0;
+            const wait = setInterval(function() {
+                tries++;
+                if (window.PaystackPop) { clearInterval(wait); handleDirectBuy(); setBuyBusy(false); }
+                else if (tries > 10) { clearInterval(wait); showBuyToast("Payment system not loaded. Check your connection.", "error"); setBuyBusy(false); }
+            }, 500);
             return;
         }
-        setBuyBusy(true);
         const ref = "_DIRECT_" + Date.now();
+        let paid = false;
         const handler = window.PaystackPop.setup({
             key: PAYSTACK_PK,
             email: buyEmail || "customer@dataresell.pro",
@@ -234,6 +250,7 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
             ref,
             metadata: { custom_fields: [{ display_name: "Bundle", variable_name: "bundle", value: buyModal.label + " MTN Data" }, { display_name: "Phone", variable_name: "phone", value: buyPhone }] },
             callback: async (response) => {
+                paid = true;
                 const orderId = genOrderId();
                 try {
                     await sb("transactions", { method: "POST", prefer: "return=representation",
@@ -245,7 +262,7 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
                 setBuyDone({ orderId, bundle: buyModal.label + " MTN Data", phone: buyPhone, amount: buyModal.price });
                 setBuyBusy(false);
             },
-            onClose: () => { showBuyToast("Payment cancelled", "error"); setBuyBusy(false); }
+            onClose: () => { if (!paid) { showBuyToast("Payment cancelled", "error"); setBuyBusy(false); } }
         });
         handler.openIframe();
     };
@@ -3940,11 +3957,18 @@ function StoreFront({ slug }) {
             return;
         }
         if (!window.PaystackPop) {
-            showToast("Payment system not ready", "error");
+            setSfSmsBusy(true);
+            let tries = 0;
+            const wait = setInterval(function() {
+                tries++;
+                if (window.PaystackPop) { clearInterval(wait); sfSmsHandlePay(); setSfSmsBusy(false); }
+                else if (tries > 10) { clearInterval(wait); showToast("Payment system not loaded. Check your connection.", "error"); setSfSmsBusy(false); }
+            }, 500);
             return;
         }
         setSfSmsBusy(true);
         const ref = "_SMS_" + Date.now();
+        let paid = false;
         const handler = window.PaystackPop.setup({
             key: PAYSTACK_PK,
             email: email || "customer@dataresell.pro",
@@ -3957,6 +3981,7 @@ function StoreFront({ slug }) {
                     { display_name: "Store", variable_name: "store", value: reseller.store_name },
                 ] },
             callback: async (response) => {
+                paid = true;
                 try {
                     await sb("transactions", { method: "POST", prefer: "return=representation",
                         body: JSON.stringify({ reseller_id: reseller.id, network: "SMS", bundle: `${sfSmsPlan.label} Bulk SMS — ${sfSmsContacts.length} recipients`, amount: sfSmsPlan.price, customer_phone: reseller.phone_number, status: "pending", type: "sms_blast", payment_ref: response.reference, order_ref: "SMS-" + response.reference.slice(-8).toUpperCase() }) });
@@ -3967,7 +3992,7 @@ function StoreFront({ slug }) {
                 setSfSmsDone({ plan: sfSmsPlan, count: sfSmsContacts.length, ref: response.reference });
                 setSfSmsBusy(false);
             },
-            onClose: () => { showToast("Payment cancelled", "error"); setSfSmsBusy(false); }
+            onClose: () => { if (!paid) { showToast("Payment cancelled", "error"); setSfSmsBusy(false); } }
         });
         handler.openIframe();
     };
@@ -4026,10 +4051,16 @@ function StoreFront({ slug }) {
     };
     const launchPaystack = (amount, onSuccess, meta = {}) => {
         if (!window.PaystackPop) {
-            showToast("Payment system not loaded", "error");
+            let tries = 0;
+            const wait = setInterval(function() {
+                tries++;
+                if (window.PaystackPop) { clearInterval(wait); launchPaystack(amount, onSuccess, meta); }
+                else if (tries > 10) { clearInterval(wait); showToast("Payment system not loaded. Check your connection.", "error"); setBuying(false); }
+            }, 500);
             return;
         }
         const ref = "_G" + reseller.store_name.replace(/\s+/g, "").toUpperCase().slice(0, 12) + "_" + Date.now();
+        let paid = false;
         const handler = window.PaystackPop.setup({
             key: PAYSTACK_PK,
             email: email || "customer@dataresell.pro",
@@ -4037,8 +4068,8 @@ function StoreFront({ slug }) {
             currency: "GHS",
             ref,
             metadata: { custom_fields: [{ display_name: "Store", variable_name: "store", value: reseller.store_name }, ...Object.entries(meta).map(([k, v]) => ({ display_name: k, variable_name: k, value: String(v) }))] },
-            callback: (response) => { onSuccess(response.reference); },
-            onClose: () => { showToast("Payment cancelled", "error"); setBuying(false); }
+            callback: async (response) => { paid = true; await onSuccess(response.reference); },
+            onClose: () => { if (!paid) { showToast("Payment cancelled", "error"); setBuying(false); } }
         });
         handler.openIframe();
     };
