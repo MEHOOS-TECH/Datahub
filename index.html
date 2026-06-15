@@ -11,10 +11,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
 <!-- React (production, no Babel needed) -->
-<script src="https://js.paystack.co/v1/inline.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
-
+<script>
+// Load Paystack on-demand so it works from any host (including local file:// / content://)
+window._paystackReady = new Promise(function(resolve, reject) {
+    if (window.PaystackPop) { resolve(); return; }
+    var script = document.createElement("script");
+    script.src = "https://js.paystack.co/v1/inline.js";
+    script.async = true;
+    script.onload = function() {
+        if (window.PaystackPop) { resolve(); }
+        else { reject(new Error("Paystack loaded but PaystackPop not found")); }
+    };
+    script.onerror = function() {
+        reject(new Error("Could not load Paystack. Please check your internet connection and try again."));
+    };
+    document.head.appendChild(script);
+});
+</script>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -152,6 +167,7 @@ async function rlFetch(product, path, opts = {}) {
     }
     return res.json();
 }
+const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
 const slugify = s => s.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
 const fmt = n => new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 const genOrderId = () => "ORD-" + Math.random().toString(36).slice(2, 6).toUpperCase() + Date.now().toString(36).slice(-3).toUpperCase();
@@ -219,26 +235,28 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
     const handleDirectBuy = () => {
         if (!buyPhone.trim()) { showBuyToast("Enter your phone number", "error"); return; }
         setBuyBusy(true);
-        const ref = "_DIRECT_" + Date.now();
-        let paid = false;
-        const handler = window.PaystackPop.setup({
-            key: PAYSTACK_PK,
-            email: buyEmail || "customer@dataresell.pro",
-            amount: Math.round(buyModal.price * 100),
-            currency: "GHS",
-            ref,
-            metadata: { custom_fields: [{ display_name: "Bundle", variable_name: "bundle", value: buyModal.label + " MTN Data" }, { display_name: "Phone", variable_name: "phone", value: buyPhone }] },
-            callback: async (response) => {
-                paid = true;
-                const orderId = genOrderId();
-                try { await sb("transactions", { method: "POST", prefer: "return=representation", body: JSON.stringify({ reseller_id: null, network: "MTN", bundle: buyModal.label + " MTN Data - GHS" + buyModal.price.toFixed(2), amount: buyModal.price, customer_phone: buyPhone, customer_email: buyEmail || null, status: "pending", type: "data_purchase", payment_ref: response.reference, order_ref: orderId }) }); }
-                catch (e) { console.warn("Order log failed", e); }
-                setBuyDone({ orderId, bundle: buyModal.label + " MTN Data", phone: buyPhone, amount: buyModal.price });
-                setBuyBusy(false);
-            },
-            onClose: () => { if (!paid) { showBuyToast("Payment cancelled", "error"); setBuyBusy(false); } }
-        });
-        handler.openIframe();
+        window._paystackReady.then(() => {
+            const ref = "_DIRECT_" + Date.now();
+            let paid = false;
+            const handler = window.PaystackPop.setup({
+                key: PAYSTACK_PK,
+                email: buyEmail || "customer@dataresell.pro",
+                amount: Math.round(buyModal.price * 100),
+                currency: "GHS",
+                ref,
+                metadata: { custom_fields: [{ display_name: "Bundle", variable_name: "bundle", value: buyModal.label + " MTN Data" }, { display_name: "Phone", variable_name: "phone", value: buyPhone }] },
+                callback: async (response) => {
+                    paid = true;
+                    const orderId = genOrderId();
+                    try { await sb("transactions", { method: "POST", prefer: "return=representation", body: JSON.stringify({ reseller_id: null, network: "MTN", bundle: buyModal.label + " MTN Data - GHS" + buyModal.price.toFixed(2), amount: buyModal.price, customer_phone: buyPhone, customer_email: buyEmail || null, status: "pending", type: "data_purchase", payment_ref: response.reference, order_ref: orderId }) }); }
+                    catch (e) { console.warn("Order log failed", e); }
+                    setBuyDone({ orderId, bundle: buyModal.label + " MTN Data", phone: buyPhone, amount: buyModal.price });
+                    setBuyBusy(false);
+                },
+                onClose: () => { if (!paid) { showBuyToast("Payment cancelled", "error"); setBuyBusy(false); } }
+            });
+            handler.openIframe();
+        }).catch(() => { showBuyToast("Payment system failed to load. Check your connection.", "error"); setBuyBusy(false); });
     };
     useEffect(() => {
         // Use Prefer: count=exact so we get a header, not all rows
@@ -854,16 +872,48 @@ function Dashboard({ reseller: init, onLogout }) {
             setBuying(false);
         }
     };
-    const fundWallet = async () => {
-        try {
-            await sb(`resellers?id=eq.${reseller.id}`, { method: "PATCH", prefer: "return=representation",
-                body: JSON.stringify({ wallet_balance: (reseller.wallet_balance || 0) + 50 }) });
-            showToast("GHS 50.00 added to wallet (demo)");
-            fetchData();
-        }
-        catch (_a) {
-            showToast("Failed", "error");
-        }
+    const fundWallet = () => {
+        const amountStr = window.prompt("Enter amount to add to wallet (GHS):", "50");
+        if (!amountStr) return;
+        const amount = parseFloat(amountStr);
+        if (isNaN(amount) || amount <= 0) { showToast("Enter a valid amount", "error"); return; }
+        const email = reseller.phone_number + "@dataresell.pro";
+        window._paystackReady.then(() => {
+            const ref = "WALLET_" + reseller.id.slice(0, 8).toUpperCase() + "_" + Date.now();
+            let paid = false;
+            const handler = window.PaystackPop.setup({
+                key: PAYSTACK_PK,
+                email,
+                amount: Math.round(amount * 100),
+                currency: "GHS",
+                ref,
+                metadata: { custom_fields: [
+                    { display_name: "Store", variable_name: "store", value: reseller.store_name },
+                    { display_name: "Type", variable_name: "type", value: "Wallet Top-up" },
+                ] },
+                callback: async (response) => {
+                    paid = true;
+                    try {
+                        await sb(`resellers?id=eq.${reseller.id}`, { method: "PATCH", prefer: "return=representation",
+                            body: JSON.stringify({ wallet_balance: (reseller.wallet_balance || 0) + amount }) });
+                        await sb("transactions", { method: "POST", prefer: "return=representation",
+                            body: JSON.stringify({
+                                reseller_id: reseller.id, network: "WALLET",
+                                bundle: "Wallet Top-up via Paystack",
+                                amount, customer_phone: reseller.phone_number,
+                                status: "success", type: "wallet_topup",
+                                admin_status: "Completed", payment_ref: response.reference
+                            }) });
+                        showToast(`✅ GHS ${amount.toFixed(2)} added to your wallet!`);
+                        fetchData();
+                    } catch (e) {
+                        showToast("Payment received but wallet update failed. Contact support with ref: " + response.reference, "error");
+                    }
+                },
+                onClose: () => { if (!paid) showToast("Payment cancelled", "error"); }
+            });
+            handler.openIframe();
+        }).catch(() => showToast("Payment system failed to load. Check your connection.", "error"));
     };
     // Load prices from Supabase on mount
     useEffect(() => {
@@ -1184,7 +1234,7 @@ function Dashboard({ reseller: init, onLogout }) {
                         React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("primary")), { width: "100%", padding: 15, fontSize: 16 }), onClick: handleBuy, disabled: buying }, buying ? React.createElement(React.Fragment, null,
                             React.createElement("span", { className: "spinner" }),
                             " Processing\u2026") : "Send Data Bundle"),
-                        React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("green")), { width: "100%", padding: 13, fontSize: 15 }), onClick: fundWallet }, "+ Fund Wallet (Demo +GHS50)")))),
+                        React.createElement("button", { style: Object.assign(Object.assign({}, btnStyle("green")), { width: "100%", padding: 13, fontSize: 15 }), onClick: fundWallet }, "💳 Fund Wallet via Paystack")))),
                 tab === "social" && React.createElement(DashSocialTab, { reseller: reseller, showToast: showToast, fetchData: fetchData }),
                 tab === "orders" && (React.createElement("div", null,
                     React.createElement("div", { className: "syne fade-up fa1", style: { fontWeight: 700, fontSize: 18, marginBottom: 4 } }, "My Orders"),
@@ -3812,7 +3862,6 @@ function StoreFront({ slug }) {
     const [done, setDone] = useState(null);
     const [toast, setToast] = useState({ msg: "", type: "" });
     const [resellerPrices, setResellerPrices] = useState({});
-    const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
     const showToast = (msg, type = "success") => {
         setToast({ msg, type });
         setTimeout(() => setToast({ msg: "", type: "" }), 3500);
@@ -3928,29 +3977,31 @@ function StoreFront({ slug }) {
     const sfSmsHandlePay = () => {
         if (!sfSmsCanSend) { showToast("Select a plan, upload numbers, and write a message", "error"); return; }
         setSfSmsBusy(true);
-        const ref = "_SMS_" + Date.now();
-        let paid = false;
-        const handler = window.PaystackPop.setup({
-            key: PAYSTACK_PK,
-            email: email || "customer@dataresell.pro",
-            amount: Math.round(sfSmsPlan.price * 100),
-            currency: "GHS",
-            ref,
-            metadata: { custom_fields: [
-                { display_name: "SMS Plan", variable_name: "plan", value: sfSmsPlan.label },
-                { display_name: "Recipients", variable_name: "recipients", value: String(sfSmsContacts.length) },
-                { display_name: "Store", variable_name: "store", value: reseller.store_name },
-            ] },
-            callback: async (response) => {
-                paid = true;
-                try { await sb("transactions", { method: "POST", prefer: "return=representation", body: JSON.stringify({ reseller_id: reseller.id, network: "SMS", bundle: `${sfSmsPlan.label} Bulk SMS — ${sfSmsContacts.length} recipients`, amount: sfSmsPlan.price, customer_phone: reseller.phone_number, status: "pending", type: "sms_blast", payment_ref: response.reference, order_ref: "SMS-" + response.reference.slice(-8).toUpperCase() }) }); }
-                catch (e) { console.warn("SMS log failed", e); }
-                setSfSmsDone({ plan: sfSmsPlan, count: sfSmsContacts.length, ref: response.reference });
-                setSfSmsBusy(false);
-            },
-            onClose: () => { if (!paid) { showToast("Payment cancelled", "error"); setSfSmsBusy(false); } }
-        });
-        handler.openIframe();
+        window._paystackReady.then(() => {
+            const ref = "_SMS_" + Date.now();
+            let paid = false;
+            const handler = window.PaystackPop.setup({
+                key: PAYSTACK_PK,
+                email: email || "customer@dataresell.pro",
+                amount: Math.round(sfSmsPlan.price * 100),
+                currency: "GHS",
+                ref,
+                metadata: { custom_fields: [
+                    { display_name: "SMS Plan", variable_name: "plan", value: sfSmsPlan.label },
+                    { display_name: "Recipients", variable_name: "recipients", value: String(sfSmsContacts.length) },
+                    { display_name: "Store", variable_name: "store", value: reseller.store_name },
+                ] },
+                callback: async (response) => {
+                    paid = true;
+                    try { await sb("transactions", { method: "POST", prefer: "return=representation", body: JSON.stringify({ reseller_id: reseller.id, network: "SMS", bundle: `${sfSmsPlan.label} Bulk SMS — ${sfSmsContacts.length} recipients`, amount: sfSmsPlan.price, customer_phone: reseller.phone_number, status: "pending", type: "sms_blast", payment_ref: response.reference, order_ref: "SMS-" + response.reference.slice(-8).toUpperCase() }) }); }
+                    catch (e) { console.warn("SMS log failed", e); }
+                    setSfSmsDone({ plan: sfSmsPlan, count: sfSmsContacts.length, ref: response.reference });
+                    setSfSmsBusy(false);
+                },
+                onClose: () => { if (!paid) { showToast("Payment cancelled", "error"); setSfSmsBusy(false); } }
+            });
+            handler.openIframe();
+        }).catch(() => { showToast("Payment system failed to load. Check your connection.", "error"); setSfSmsBusy(false); });
     };
     const sfTabList = [
         { id: "bundles", icon: "📡", label: "Data Bundles" },
@@ -4006,19 +4057,21 @@ function StoreFront({ slug }) {
         }
     };
     const launchPaystack = (amount, onSuccess, meta = {}) => {
-        const ref = "_G" + reseller.store_name.replace(/\s+/g, "").toUpperCase().slice(0, 12) + "_" + Date.now();
-        let paid = false;
-        const handler = window.PaystackPop.setup({
-            key: PAYSTACK_PK,
-            email: email || "customer@dataresell.pro",
-            amount: Math.round(amount * 100),
-            currency: "GHS",
-            ref,
-            metadata: { custom_fields: [{ display_name: "Store", variable_name: "store", value: reseller.store_name }, ...Object.entries(meta).map(([k, v]) => ({ display_name: k, variable_name: k, value: String(v) }))] },
-            callback: async (response) => { paid = true; await onSuccess(response.reference); },
-            onClose: () => { if (!paid) { showToast("Payment cancelled", "error"); setBuying(false); } }
-        });
-        handler.openIframe();
+        window._paystackReady.then(() => {
+            const ref = "_G" + reseller.store_name.replace(/\s+/g, "").toUpperCase().slice(0, 12) + "_" + Date.now();
+            let paid = false;
+            const handler = window.PaystackPop.setup({
+                key: PAYSTACK_PK,
+                email: email || "customer@dataresell.pro",
+                amount: Math.round(amount * 100),
+                currency: "GHS",
+                ref,
+                metadata: { custom_fields: [{ display_name: "Store", variable_name: "store", value: reseller.store_name }, ...Object.entries(meta).map(([k, v]) => ({ display_name: k, variable_name: k, value: String(v) }))] },
+                callback: async (response) => { paid = true; await onSuccess(response.reference); },
+                onClose: () => { if (!paid) { showToast("Payment cancelled", "error"); setBuying(false); } }
+            });
+            handler.openIframe();
+        }).catch(() => { showToast("Payment system failed to load. Check your connection.", "error"); setBuying(false); });
     };
     const handleBuy = () => {
         if (!selected) {
@@ -4579,31 +4632,33 @@ function BulkSMSTab({ reseller, showToast }) {
     const handlePay = () => {
         if (!canSend) { showToast("Select a plan, upload numbers, and write a message", "error"); return; }
         setBusy(true);
-        const ref = "SMS_" + Date.now();
-        let paid = false;
-        const handler = window.PaystackPop.setup({
-            key: PAYSTACK_PK,
-            email: reseller.phone_number + "@gendata.gh",
-            amount: Math.round(totalCost * 100),
-            currency: "GHS",
-            ref,
-            metadata: { custom_fields: [
-                { display_name: "SMS Plan", variable_name: "plan", value: selectedPlan.label },
-                { display_name: "Recipients", variable_name: "recipients", value: String(contacts.length) },
-                { display_name: "Sender ID", variable_name: "sender_id", value: senderId },
-                { display_name: "Reseller", variable_name: "reseller", value: reseller.store_name },
-            ] },
-            callback: async (response) => {
-                paid = true;
-                try { await sb("transactions", { method: "POST", prefer: "return=representation", body: JSON.stringify({ reseller_id: reseller.id, network: "SMS", bundle: `${selectedPlan.label} Bulk SMS — ${contacts.length} recipients`, amount: totalCost, customer_phone: reseller.phone_number, status: "pending", type: "sms_blast", payment_ref: response.reference, order_ref: "SMS-" + response.reference.slice(-8).toUpperCase() }) }); }
-                catch (e) { console.warn("SMS log failed", e); }
-                setSmsResult({ plan: selectedPlan, count: contacts.length, ref: response.reference });
-                setStep("smsDone");
-                setBusy(false);
-            },
-            onClose: () => { if (!paid) { showToast("Payment cancelled", "error"); setBusy(false); } }
-        });
-        handler.openIframe();
+        window._paystackReady.then(() => {
+            const ref = "SMS_" + Date.now();
+            let paid = false;
+            const handler = window.PaystackPop.setup({
+                key: PAYSTACK_PK,
+                email: reseller.phone_number + "@gendata.gh",
+                amount: Math.round(totalCost * 100),
+                currency: "GHS",
+                ref,
+                metadata: { custom_fields: [
+                    { display_name: "SMS Plan", variable_name: "plan", value: selectedPlan.label },
+                    { display_name: "Recipients", variable_name: "recipients", value: String(contacts.length) },
+                    { display_name: "Sender ID", variable_name: "sender_id", value: senderId },
+                    { display_name: "Reseller", variable_name: "reseller", value: reseller.store_name },
+                ] },
+                callback: async (response) => {
+                    paid = true;
+                    try { await sb("transactions", { method: "POST", prefer: "return=representation", body: JSON.stringify({ reseller_id: reseller.id, network: "SMS", bundle: `${selectedPlan.label} Bulk SMS — ${contacts.length} recipients`, amount: totalCost, customer_phone: reseller.phone_number, status: "pending", type: "sms_blast", payment_ref: response.reference, order_ref: "SMS-" + response.reference.slice(-8).toUpperCase() }) }); }
+                    catch (e) { console.warn("SMS log failed", e); }
+                    setSmsResult({ plan: selectedPlan, count: contacts.length, ref: response.reference });
+                    setStep("smsDone");
+                    setBusy(false);
+                },
+                onClose: () => { if (!paid) { showToast("Payment cancelled", "error"); setBusy(false); } }
+            });
+            handler.openIframe();
+        }).catch(() => { showToast("Payment system failed to load. Check your connection.", "error"); setBusy(false); });
     };
     const reset = () => {
         setStep("upload");
