@@ -171,7 +171,7 @@ async function rlFetch(product, path, opts = {}) {
 // Replace the value below with your Paystack PUBLIC key (pk_live_… or pk_test_…).
 // Find it in: Paystack Dashboard → Settings → API Keys & Webhooks
 // ⚠️  NEVER paste your secret key (sk_live_…) here — it must only live on your server.
-const PAYSTACK_PK = "YOUR_PAYSTACK_PUBLIC_KEY_HERE";
+const PAYSTACK_PK = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
 // ─────────────────────────────────────────────────────────────────────────────
 const slugify = s => s.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
 const fmt = n => new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
