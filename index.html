@@ -8,16 +8,15 @@
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<!-- Load fonts without blocking render -->
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/></noscript>
 
-<!-- React (async so HTML + CSS parse immediately) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin async></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin async></script>
 <!-- Paystack loaded on-demand at payment time, not at page load -->
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+body{background:#0a0f1e;color:#e8edf7;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:#0a0f1e}
 ::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:3px}
@@ -90,16 +89,16 @@ body::before{
 #loader{position:fixed;inset:0;background:#0a0f1e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:99999;transition:opacity .4s ease}
 #loader.hidden{opacity:0;pointer-events:none}
 .ld-spin{width:44px;height:44px;border:3px solid rgba(0,229,255,.15);border-top-color:#00e5ff;border-radius:50%;animation:spin .7s linear infinite}
-.ld-text{color:#6b7fa3;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;letter-spacing:0.3px}
+.ld-text{color:#6b7fa3;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:500;letter-spacing:0.3px}
 
 /* Storefront-specific styles */
-.sf-body{background:linear-gradient(145deg,#0d0d1a 0%,#0f1628 50%,#0a1020 100%);min-height:100vh;font-family:'DM Sans',sans-serif;}
+.sf-body{background:linear-gradient(145deg,#0d0d1a 0%,#0f1628 50%,#0a1020 100%);min-height:100vh;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
 .sf-net-card{background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.08);border-radius:20px;padding:20px 22px;display:flex;align-items:center;gap:18;cursor:pointer;transition:all .25s cubic-bezier(0.34,1.56,0.64,1);backdrop-filter:blur(10px);}
 .sf-net-card:hover{transform:translateY(-4px) scale(1.01);border-color:rgba(255,255,255,0.2);box-shadow:0 20px 60px rgba(0,0,0,0.4);}
 .sf-bundle-card{border-radius:18px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:all .2s cubic-bezier(0.34,1.56,0.64,1);position:relative;overflow:hidden;}
 .sf-bundle-card:hover{transform:translateY(-3px) scale(1.01);}
-.sf-buy-btn{border:none;border-radius:12px;padding:10px 24px;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;letter-spacing:0.3px;}
-.paystack-btn{width:100%;padding:17px;border-radius:16px;border:none;font-weight:800;font-size:17px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:0.3px;position:relative;overflow:hidden;}
+.sf-buy-btn{border:none;border-radius:12px;padding:10px 24px;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.3px;}
+.paystack-btn{width:100%;padding:17px;border-radius:16px;border:none;font-weight:800;font-size:17px;cursor:pointer;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:0.3px;position:relative;overflow:hidden;}
 .paystack-btn::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);transform:translateX(-100%);transition:transform .5s;}
 .paystack-btn:hover::after{transform:translateX(100%);}
 
@@ -119,15 +118,11 @@ body::before{
 <body>
 <div id="loader"><div class="ld-spin"></div><div class="ld-text">Loading…</div></div>
 <div id="root"></div>
+<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin defer></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin defer></script>
 <script>
+window.addEventListener("load", function() {
 "use strict";
-// Wait for async React scripts before running app
-function waitForReact(cb, attempts) {
-  attempts = attempts || 0;
-  if (window.React && window.ReactDOM) { cb(); }
-  else if (attempts < 100) { setTimeout(function(){ waitForReact(cb, attempts + 1); }, 50); }
-}
-waitForReact(function() {
 const { useState, useEffect, useCallback } = React;
 const SUPABASE_URL = "https://lbflhbogfhtnjjnxjntb.supabase.co";
 const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZmxoYm9nZmh0bmpqbnhqbnRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMjU1MTAsImV4cCI6MjA5NTkwMTUxMH0.R4OHHkHHGGhC_9mkUbuQ52Hu75340X4H-MvadAqG7jQ";
@@ -4920,7 +4915,7 @@ window.loadPaystack = function(cb) {
     s.onload = function() { window._paystackLoading = false; if (cb) cb(); };
     document.head.appendChild(s);
 };
-}); // end waitForReact
+}); // window load
 </script>
 </body>
 </html>
