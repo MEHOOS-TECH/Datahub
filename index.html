@@ -230,16 +230,11 @@ function Landing({ onSignup, onLogin, onSecretTap }) {
             showBuyToast("Enter your phone number", "error");
             return;
         }
-        setBuyBusy(true);
         if (!window.PaystackPop) {
-            let tries = 0;
-            const wait = setInterval(function() {
-                tries++;
-                if (window.PaystackPop) { clearInterval(wait); handleDirectBuy(); setBuyBusy(false); }
-                else if (tries > 10) { clearInterval(wait); showBuyToast("Payment system not loaded. Check your connection.", "error"); setBuyBusy(false); }
-            }, 500);
+            showBuyToast("Payment system not loaded. Check your connection.", "error");
             return;
         }
+        setBuyBusy(true);
         const ref = "_DIRECT_" + Date.now();
         let paid = false;
         const handler = window.PaystackPop.setup({
@@ -3957,13 +3952,7 @@ function StoreFront({ slug }) {
             return;
         }
         if (!window.PaystackPop) {
-            setSfSmsBusy(true);
-            let tries = 0;
-            const wait = setInterval(function() {
-                tries++;
-                if (window.PaystackPop) { clearInterval(wait); sfSmsHandlePay(); setSfSmsBusy(false); }
-                else if (tries > 10) { clearInterval(wait); showToast("Payment system not loaded. Check your connection.", "error"); setSfSmsBusy(false); }
-            }, 500);
+            showToast("Payment system not loaded. Check your connection.", "error");
             return;
         }
         setSfSmsBusy(true);
@@ -4051,12 +4040,8 @@ function StoreFront({ slug }) {
     };
     const launchPaystack = (amount, onSuccess, meta = {}) => {
         if (!window.PaystackPop) {
-            let tries = 0;
-            const wait = setInterval(function() {
-                tries++;
-                if (window.PaystackPop) { clearInterval(wait); launchPaystack(amount, onSuccess, meta); }
-                else if (tries > 10) { clearInterval(wait); showToast("Payment system not loaded. Check your connection.", "error"); setBuying(false); }
-            }, 500);
+            showToast("Payment system not loaded. Check your connection.", "error");
+            setBuying(false);
             return;
         }
         const ref = "_G" + reseller.store_name.replace(/\s+/g, "").toUpperCase().slice(0, 12) + "_" + Date.now();
