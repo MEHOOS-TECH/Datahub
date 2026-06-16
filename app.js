@@ -4912,11 +4912,20 @@ function StoreFront({slug}){
   };
 
   useEffect(()=>{
-    sb("resellers?store_slug=eq."+slug+"&select=*")
+    const timeout = new Promise((_,reject)=>
+      setTimeout(()=>reject(new Error("timeout")), 10000)
+    );
+    Promise.race([
+      sb("resellers?store_slug=eq."+slug+"&select=id,store_name,store_slug,phone_number,wallet_balance,total_sales,total_customers,paystack_key,logo_url,banner_color,whatsapp"),
+      timeout
+    ])
       .then(r=>{
         if(r&&r.length){
           setReseller(r[0]);
-          return sb("reseller_prices?reseller_id=eq."+r[0].id+"&select=bundle_id,price");
+          return Promise.race([
+            sb("reseller_prices?reseller_id=eq."+r[0].id+"&select=bundle_id,price"),
+            new Promise((_,reject)=>setTimeout(()=>reject(new Error("timeout")),8000))
+          ]);
         } else { setNotFound(true); return []; }
       })
       .then(prices=>{
@@ -5040,7 +5049,13 @@ function StoreFront({slug}){
       <div style={{textAlign:"center",maxWidth:360}}>
         <div style={{fontSize:64,marginBottom:16}}>🔍</div>
         <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:"#e8edf7",marginBottom:10}}>Store Not Found</div>
-        <div style={{color:"#6b7fa3",fontSize:15}}>This reseller store doesn't exist or has been removed.</div>
+        <div style={{color:"#6b7fa3",fontSize:15,marginBottom:16}}>This reseller store doesn't exist or has been removed.</div>
+        <button onClick={()=>window.location.reload()}
+          style={{padding:"10px 24px",borderRadius:10,border:"1px solid rgba(0,229,255,0.3)",
+            background:"rgba(0,229,255,0.08)",color:"#00e5ff",fontWeight:700,fontSize:14,
+            cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+          🔄 Try Again
+        </button>
       </div>
     </div>
   );
