@@ -3071,7 +3071,7 @@ function AdminPanel({onLogout}){
     setLoading(true);
     try{
       const [r,t,wd,rq] = await Promise.all([
-        sb("resellers?select=*&order=created_at.desc"),
+        sb("resellers?select=id,store_name,store_slug,phone_number,wallet_balance,total_sales,total_customers,created_at&order=created_at.desc&limit=300"),
         sb("transactions?select=*&order=created_at.desc&limit=500"),
         sb("withdrawal_requests?select=*&order=created_at.desc").catch(()=>[]),
         sb("reseller_requests?select=*&order=created_at.desc").catch(()=>[])
