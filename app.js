@@ -617,7 +617,7 @@ function AuthModal({defaultTab="signup", onSuccess, onClose}){
                   onBlur={e=>e.target.style.borderColor=G.border}/>
                 {f.k==="store_name"&&signupForm.store_name&&(
                   <div style={{fontSize:12,color:G.accent,marginTop:5}}>
-                    Your link: <strong>{window.location.origin}/#/store/{slugify(signupForm.store_name)}</strong>
+                    Your link: <strong>{window.location.origin}/store/{slugify(signupForm.store_name)}</strong>
                   </div>
                 )}
               </div>
@@ -875,10 +875,7 @@ function Dashboard({reseller:init,onLogout}){
   // Notifications
   const [unreadNotifCount,setUnreadNotifCount] = useState(0);
 
-  // Generate store URL: prefer path-based (works with Vercel rewrites),
-  // but also expose hash-based version as universal fallback
-  const _hasRewrite = window.location.pathname !== "/" && !window.location.pathname.endsWith(".html");
-  const storeUrl = `${window.location.origin}/#/store/${reseller.store_slug}`;
+  const storeUrl = `${window.location.origin}/store/${reseller.store_slug}`;
 
   const showToast=(msg,type="success")=>{
     setToast({msg,type}); setTimeout(()=>setToast({msg:"",type:""}),3000);
@@ -5506,13 +5503,10 @@ function AndroidInstallPopup(){
 }
 function App(){
   // Resolve route + session synchronously to avoid blank-screen flash
-  // Supports both /store/:slug (Vercel rewrites) and #/store/:slug (hash-based fallback)
-  const _pathMatch = window.location.pathname.match(/^\/store\/([a-z0-9]+)\/?$/i);
-  const _hashMatch = window.location.hash.match(/^#\/store\/([a-z0-9]+)\/?$/i);
-  const _storeSlug = (_pathMatch && _pathMatch[1]) || (_hashMatch && _hashMatch[1]) || null;
+  const _storeMatch = window.location.pathname.match(/^\/store\/([a-z0-9]+)\/?$/i);
   const _savedReseller = (()=>{ try{ const s=sessionStorage.getItem("reseller"); return s?JSON.parse(s):null; }catch{ return null; } })();
 
-  const [page, setPage] = useState(_storeSlug ? {type:"store",slug:_storeSlug.toLowerCase()} : null);
+  const [page, setPage] = useState(_storeMatch ? {type:"store",slug:_storeMatch[1].toLowerCase()} : null);
   const [reseller, setReseller] = useState(_savedReseller);
   const [showAuth, setShowAuth] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -5544,7 +5538,7 @@ function App(){
   return(
     <>
       <AndroidInstallPopup/>
-      {showAuth&&<AuthModal onSuccess={handleLogin} onClose={()=>setShowAuth(false)} initTab={initTab}/>}
+      {showAuth&&<AuthModal onSuccess={handleLogin} onClose={()=>setShowAuth(false)} defaultTab={initTab}/>}
       {showAdmin&&<AdminLoginModal onSuccess={()=>{setIsAdmin(true);setShowAdmin(false);}} onClose={()=>setShowAdmin(false)}/>}
       <Landing
         onSignup={()=>{setInitTab("signup");setShowAuth(true);}}
