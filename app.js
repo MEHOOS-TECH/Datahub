@@ -171,8 +171,8 @@ function Landing({onSignup, onLogin, onSecretTap}){
   // Base prices for the public pricing section
   const mtnBundles = [
     {label:"1GB",price:4.40},{label:"2GB",price:8.70},{label:"3GB",price:12.80},
-    {label:"4GB",price:17.00},{label:"5GB",price:22.00},{label:"10GB",price:41.00},
-    {label:"25GB",price:98.00},{label:"50GB",price:193.00},
+    {label:"4GB",price:17.00},{label:"5GB",price:22.00},{label:"12GB",price:35.00},
+    {label:"10GB + 700 MINUTES",price:35.00},{label:"25GB",price:98.00},{label:"50GB",price:193.00},
   ];
 
   return(
@@ -488,6 +488,26 @@ function Landing({onSignup, onLogin, onSecretTap}){
       <footer style={{borderTop:`1px solid ${G.border}`,padding:"16px 20px",textAlign:"center",color:G.muted,fontSize:12}}>
         © 2025 DataResell Pro Ghana · All rights reserved
       </footer>
+
+      {/* ── WhatsApp Floating Button ── */}
+      <a
+        href="https://wa.me/233557877493"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Chat with us on WhatsApp"
+        style={{
+          position:"fixed", bottom:24, right:20, zIndex:9999,
+          width:56, height:56, borderRadius:"50%",
+          background:"#25D366",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          boxShadow:"0 4px 20px rgba(37,211,102,0.5)",
+          textDecoration:"none",
+          animation:"waPulse 2.5s ease infinite"
+        }}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="#fff">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+      </a>
     </div>
   );
 }
@@ -597,7 +617,7 @@ function AuthModal({defaultTab="signup", onSuccess, onClose}){
                   onBlur={e=>e.target.style.borderColor=G.border}/>
                 {f.k==="store_name"&&signupForm.store_name&&(
                   <div style={{fontSize:12,color:G.accent,marginTop:5}}>
-                    Your link: <strong>{window.location.origin}/store/{slugify(signupForm.store_name)}</strong>
+                    Your link: <strong>{window.location.origin}/#/store/{slugify(signupForm.store_name)}</strong>
                   </div>
                 )}
               </div>
@@ -855,7 +875,10 @@ function Dashboard({reseller:init,onLogout}){
   // Notifications
   const [unreadNotifCount,setUnreadNotifCount] = useState(0);
 
-  const storeUrl = `${window.location.origin}/store/${reseller.store_slug}`;
+  // Generate store URL: prefer path-based (works with Vercel rewrites),
+  // but also expose hash-based version as universal fallback
+  const _hasRewrite = window.location.pathname !== "/" && !window.location.pathname.endsWith(".html");
+  const storeUrl = `${window.location.origin}/#/store/${reseller.store_slug}`;
 
   const showToast=(msg,type="success")=>{
     setToast({msg,type}); setTimeout(()=>setToast({msg:"",type:""}),3000);
@@ -1893,9 +1916,10 @@ const BASE_BUNDLES = {
     {id:"mtn_2gb",  label:"2GB",  base:8.70},
     {id:"mtn_3gb",  label:"3GB",  base:12.80},
     {id:"mtn_4gb",  label:"4GB",  base:17.00},
-    {id:"mtn_5gb",  label:"5GB",  base:22.00},
-    {id:"mtn_10gb", label:"10GB", base:41.00},
-    {id:"mtn_25gb", label:"25GB", base:98.00},
+    {id:"mtn_5gb",         label:"5GB",             base:22.00},
+    {id:"mtn_12gb",        label:"12GB",            base:35.00},
+    {id:"mtn_10gb_700min", label:"10GB + 700 MINUTES", base:35.00},
+    {id:"mtn_25gb",        label:"25GB",            base:98.00},
     {id:"mtn_50gb", label:"50GB", base:193.00},
   ],
   AirtelTigo:[
@@ -1903,14 +1927,16 @@ const BASE_BUNDLES = {
     {id:"at_2gb",  label:"2GB",  base:8.70,  outOfStock:true},
     {id:"at_3gb",  label:"3GB",  base:12.80, outOfStock:true},
     {id:"at_5gb",  label:"5GB",  base:22.00, outOfStock:true},
-    {id:"at_10gb", label:"10GB", base:41.00, outOfStock:true},
+    {id:"at_12gb",        label:"12GB",            base:35.00, outOfStock:true},
+    {id:"at_10gb_700min", label:"10GB + 700 MINUTES", base:35.00, outOfStock:true},
   ],
   Telecel:[
     {id:"tc_1gb",  label:"1GB",  base:4.40,  outOfStock:true},
     {id:"tc_2gb",  label:"2GB",  base:8.70,  outOfStock:true},
     {id:"tc_3gb",  label:"3GB",  base:12.80, outOfStock:true},
     {id:"tc_5gb",  label:"5GB",  base:22.00, outOfStock:true},
-    {id:"tc_10gb", label:"10GB", base:41.00, outOfStock:true},
+    {id:"tc_12gb",        label:"12GB",            base:35.00, outOfStock:true},
+    {id:"tc_10gb_700min", label:"10GB + 700 MINUTES", base:35.00, outOfStock:true},
   ],
 };
 
@@ -2313,9 +2339,9 @@ function ManualOrderModal({resellers, onClose, onSuccess, showToast}){
   },[resellerId]);
 
   const networkBundles = {
-    MTN:["1GB","2GB","3GB","4GB","5GB","10GB","25GB","50GB"],
-    AirtelTigo:["1GB","2GB","3GB","5GB","10GB"],
-    Telecel:["1GB","2GB","3GB","5GB","10GB"],
+    MTN:["1GB","2GB","3GB","4GB","5GB","12GB","10GB + 700 MINUTES","25GB","50GB"],
+    AirtelTigo:["1GB","2GB","3GB","5GB","12GB","10GB + 700 MINUTES"],
+    Telecel:["1GB","2GB","3GB","5GB","12GB","10GB + 700 MINUTES"],
   };
 
   const handle = async()=>{
@@ -4101,6 +4127,774 @@ function TrackOrder({resellerId, storeName, prefillId=""}){
     </div>
   );
 }
+
+/* ── Reloadly: Airtime Tab ── */
+function ReloadlyAirtimeTab({reseller, launchPaystack, showToast, recordReloadlyOrder}){
+  const [countries,  setCountries]  = useState([]);
+  const [operators,  setOperators]  = useState([]);
+  const [selCountry, setSelCountry] = useState(null);
+  const [selOp,      setSelOp]      = useState(null);
+  const [phone,      setPhone]      = useState("");
+  const [amount,     setAmount]     = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [busy,       setBusy]       = useState(false);
+  const [step,       setStep]       = useState("country"); // country|operator|amount|confirm
+
+  useEffect(()=>{
+    setLoading(true);
+    rlFetch("airtime","/countries")
+      .then(d=>{ setCountries(Array.isArray(d)?d:d.content||[]); })
+      .catch(e=>showToast("Could not load countries: "+e.message,"error"))
+      .finally(()=>setLoading(false));
+  },[]);
+
+  const loadOperators = async(country)=>{
+    setSelCountry(country); setStep("operator"); setLoading(true);
+    try{
+      const d = await rlFetch("airtime","/operators/countries/"+country.isoName+"?includeBundles=false&includeData=false&includePin=false");
+      setOperators(Array.isArray(d)?d:d.content||[]);
+    }catch(e){ showToast("Could not load operators: "+e.message,"error"); }
+    finally{ setLoading(false); }
+  };
+
+  const handleBuy = ()=>{
+    if(!phone.trim()){ showToast("Enter recipient phone number","error"); return; }
+    const amt = parseFloat(amount);
+    if(!amt||amt<1){ showToast("Enter a valid amount","error"); return; }
+    setBusy(true);
+    launchPaystack(amt, async(ref)=>{
+      try{
+        await rlFetch("airtime","/topups",{
+          method:"POST",
+          body:JSON.stringify({
+            recipientPhone:{countryCode:selCountry.isoName,number:phone},
+            amount:amt,
+            operatorId:selOp.id,
+            useLocalAmount:false
+          })
+        });
+        await recordReloadlyOrder({type:"airtime",label:`${selOp.name} Airtime ${selCountry.name}`,amount:amt,phone,ref});
+        showToast("✅ Airtime sent successfully!");
+        setStep("country"); setSelCountry(null); setSelOp(null); setPhone(""); setAmount("");
+      }catch(e){ showToast("Top-up failed: "+e.message,"error"); }
+      finally{ setBusy(false); }
+    });
+  };
+
+  const inputS = {width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.06)",border:"1.5px solid rgba(255,255,255,0.12)",borderRadius:12,color:"#e8edf7",fontFamily:"'DM Sans',sans-serif",fontSize:15,outline:"none"};
+
+  return(
+  <div style={{padding:"0 20px 40px",maxWidth:520,margin:"0 auto"}}>
+    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#e8edf7",marginBottom:4}}>📞 Airtime Top-Up</div>
+    <div style={{color:"#6b7fa3",fontSize:14,marginBottom:20}}>Send airtime to any number worldwide instantly.</div>
+
+    {/* Breadcrumb */}
+    <div style={{display:"flex",gap:8,marginBottom:18,alignItems:"center",flexWrap:"wrap"}}>
+      {[["country","Country"],["operator","Network"],["amount","Amount"]].map(([s,label],i,arr)=>(
+        <React.Fragment key={s}>
+          <span onClick={()=>{if(["operator","amount"].includes(step)&&s!==step){if(s==="country"){setStep("country");setSelOp(null);}}}}
+            style={{fontSize:12,fontWeight:600,color:step===s?"#00e5ff":"#6b7fa3",cursor:"pointer",opacity:step===s?1:0.6}}>
+            {label}
+          </span>
+          {i<arr.length-1&&<span style={{color:"#6b7fa3",fontSize:12}}>›</span>}
+        </React.Fragment>
+      ))}
+    </div>
+
+    {loading&&<div style={{textAlign:"center",padding:"40px"}}><span className="spinner" style={{width:32,height:32,borderTopColor:"#00e5ff"}}/></div>}
+
+    {/* Step: Country */}
+    {!loading&&step==="country"&&(
+      <div>
+        <div style={{fontWeight:600,color:"#6b7fa3",fontSize:13,marginBottom:12}}>Select destination country</div>
+        <div style={{maxHeight:380,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+          {countries.slice(0,80).map(c=>(
+            <div key={c.isoName} onClick={()=>loadOperators(c)}
+              style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .2s"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(0,229,255,0.4)"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(255,255,255,0.08)"}>
+              <span style={{fontSize:22}}>{c.flagEmoji||"🌍"}</span>
+              <span style={{fontWeight:600,color:"#e8edf7",fontSize:14}}>{c.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* Step: Operator */}
+    {!loading&&step==="operator"&&(
+      <div>
+        <button onClick={()=>{setStep("country");setOperators([]);}} style={{background:"none",border:"none",color:"#6b7fa3",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",marginBottom:14,padding:0}}>← Back</button>
+        <div style={{fontWeight:600,color:"#6b7fa3",fontSize:13,marginBottom:12}}>Select network operator in {selCountry.name}</div>
+        {operators.length===0?<div style={{color:"#6b7fa3",textAlign:"center",padding:"32px"}}>No airtime operators found.</div>:(
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {operators.map(op=>(
+              <div key={op.id} onClick={()=>{setSelOp(op);setStep("amount");}}
+                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",cursor:"pointer",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(0,229,255,0.4)"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(255,255,255,0.08)"}>
+                <div>
+                  <div style={{fontWeight:700,color:"#e8edf7",fontSize:14}}>{op.name}</div>
+                  {op.minAmount&&<div style={{fontSize:11,color:"#6b7fa3",marginTop:2}}>Min: {op.senderCurrencySymbol||"$"}{op.minAmount} · Max: {op.senderCurrencySymbol||"$"}{op.maxAmount}</div>}
+                </div>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 15l5-5-5-5" stroke="#00e5ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* Step: Amount + confirm */}
+    {!loading&&step==="amount"&&selOp&&(
+      <div>
+        <button onClick={()=>setStep("operator")} style={{background:"none",border:"none",color:"#6b7fa3",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",marginBottom:14,padding:0}}>← Back</button>
+        <div style={{background:"rgba(0,229,255,0.06)",border:"1px solid rgba(0,229,255,0.2)",borderRadius:14,padding:"14px 16px",marginBottom:18}}>
+          <div style={{fontSize:11,color:"#6b7fa3",fontWeight:600,marginBottom:2}}>SELECTED OPERATOR</div>
+          <div style={{fontWeight:700,color:"#e8edf7",fontSize:15}}>{selOp.name} · {selCountry.name}</div>
+          {selOp.minAmount&&<div style={{fontSize:12,color:"#6b7fa3",marginTop:3}}>Range: {selOp.senderCurrencySymbol||"$"}{selOp.minAmount} – {selOp.senderCurrencySymbol||"$"}{selOp.maxAmount}</div>}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div>
+            <div style={{fontSize:12,color:"#6b7fa3",fontWeight:600,marginBottom:7}}>RECIPIENT PHONE NUMBER *</div>
+            <input style={inputS} type="tel" placeholder="e.g. +1234567890 or 0241234567"
+              value={phone} onChange={e=>setPhone(e.target.value)}
+              onFocus={e=>e.target.style.borderColor="#00e5ff"}
+              onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+          </div>
+          <div>
+            <div style={{fontSize:12,color:"#6b7fa3",fontWeight:600,marginBottom:7}}>AMOUNT ({selOp.senderCurrencySymbol||"GHS"}) *</div>
+            <input style={inputS} type="number" min={selOp.minAmount||1} max={selOp.maxAmount||500} placeholder={"e.g. "+(selOp.minAmount||5)}
+              value={amount} onChange={e=>setAmount(e.target.value)}
+              onFocus={e=>e.target.style.borderColor="#00e5ff"}
+              onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+          </div>
+          <button onClick={handleBuy} disabled={busy}
+            style={{width:"100%",padding:"15px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#00e5ff,#7b61ff)",color:"#fff",fontWeight:800,fontSize:16,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+            {busy?<><span className="spinner"/>Processing…</>:"📞 Send Airtime via Paystack"}
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+  );
+}
+
+/* ── Reloadly: Gift Cards Tab ── */
+function ReloadlyGiftCardsTab({reseller, launchPaystack, showToast, recordReloadlyOrder}){
+  /* ── state ── */
+  const [allCards,   setAllCards]   = useState([]);   // all fetched cards across pages
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [totalElements, setTotalElements] = useState(0);
+  const [currentPage,   setCurrentPage]   = useState(1);
+  const [totalPages,    setTotalPages]     = useState(1);
+  const PAGE_SIZE = 50;
+
+  /* filter state */
+  const [search,      setSearch]      = useState("");
+  const [countryFilter, setCountryFilter] = useState("ALL");
+  const [countries,   setCountries]   = useState([]); // populated from fetched cards
+
+  /* purchase state */
+  const [selCard,    setSelCard]    = useState(null);
+  const [quantity,   setQuantity]   = useState(1);
+  const [selDenom,   setSelDenom]   = useState(null);
+  const [recipEmail, setRecipEmail] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [busy,       setBusy]       = useState(false);
+
+  /* ── Direct Reloadly gift-cards API (bypasses proxy) ── */
+  const GC_TOKEN = "eyJraWQiOiI5MTYxZDA4Zi05ODhjLTRiYjItYTI5NS03ODc5NmQ2MzJlM2YiLCJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzMzIzNCIsImlzcyI6Imh0dHBzOi8vcmVsb2FkbHkuYXV0aDAuY29tLyIsImh0dHBzOi8vcmVsb2FkbHkuY29tL3NhbmRib3giOmZhbHNlLCJodHRwczovL3JlbG9hZGx5LmNvbS9wcmVwYWlkVXNlcklkIjoiMzMyMzQiLCJndHkiOiJjbGllbnQtY3JlZGVudGlhbHMiLCJhdWQiOiJodHRwczovL2dpZnRjYXJkcy5yZWxvYWRseS5jb20iLCJuYmYiOjE3ODA4ODk0ODMsImF6cCI6IjMzMjM0Iiwic2NvcGUiOiJkZXZlbG9wZXIiLCJleHAiOjE3ODYwNzM0ODMsImh0dHBzOi8vcmVsb2FkbHkuY29tL2p0aSI6ImJjMWYxNDM0LTI4ZTQtNGMzNy05YjhmLWY1NTc2NDAzZGJjNSIsImlhdCI6MTc4MDg4OTQ4MywianRpIjoiMDVlNGJmNmMtOGJlZi00OTY5LTlkYjQtMTFlMzllOWY4OTRlIn0.XFRpfITRr2rsIHXRj7duieMI8MMkbLx85XrUq82eAqU";
+  const GC_BASE = "https://giftcards.reloadly.com";
+  const gcFetch = async(path, opts={}) => {
+    const res = await fetch(GC_BASE + path, {
+      method: opts.method || "GET",
+      headers: { "Authorization": `Bearer ${GC_TOKEN}`, "Accept": "application/com.reloadly.giftcards-v1+json", "Content-Type": "application/json" },
+      body: opts.body || undefined
+    });
+    if(!res.ok){ const e = await res.json().catch(()=>({})); throw new Error(e.message||e.errorCode||res.statusText); }
+    return res.json();
+  };
+
+  const fetchPage = async(p=1) => {
+    setLoading(true); setError("");
+    try{
+      const d = await gcFetch(`/products?page=${p}&size=${PAGE_SIZE}`);
+      const items = Array.isArray(d) ? d : (d.content || []);
+      setAllCards(items);
+      setTotalPages(d.totalPages || 1);
+      setTotalElements(d.totalElements || items.length);
+      setCurrentPage(p);
+      const ctrySet = [...new Set(items.map(c=>c.country?.name||"").filter(Boolean))].sort();
+      setCountries(ctrySet);
+    }catch(e){
+      setError("Could not load gift cards: "+e.message);
+    }finally{ setLoading(false); }
+  };
+
+  useEffect(()=>{ fetchPage(1); },[]);
+
+  /* ── derived filtered list ── */
+  const filtered = allCards.filter(c=>{
+    const name  = (c.productName||"").toLowerCase();
+    const brand = (c.brand?.brandName||"").toLowerCase();
+    const ctry  = c.country?.name||"";
+    const s     = search.toLowerCase();
+    return (name.includes(s)||brand.includes(s)) && (countryFilter==="ALL"||ctry===countryFilter);
+  });
+
+  /* ── buy handler ── */
+  const handleBuy = () => {
+    if(!recipEmail.trim()){ showToast("Enter recipient email","error"); return; }
+    if(!selDenom){ showToast("Select a denomination","error"); return; }
+    const total = selDenom * quantity;
+    setBusy(true);
+    launchPaystack(total, async(ref)=>{
+      try{
+        await gcFetch("/orders",{
+          method:"POST",
+          body:JSON.stringify({productId:selCard.productId,quantity,unitPrice:selDenom,
+            senderName:senderName||reseller.store_name,recipientEmail:recipEmail})
+        });
+        await recordReloadlyOrder({type:"giftcard",
+          label:`${selCard.productName} x${quantity} @${selCard.recipientCurrencyCode||selCard.denominationCurrencyCode}${selDenom}`,
+          amount:total,phone:recipEmail,ref});
+        showToast("✅ Gift card order placed!");
+        setSelCard(null); setSelDenom(null); setQuantity(1); setRecipEmail(""); setSenderName("");
+      }catch(e){ showToast("Gift card failed: "+e.message,"error"); }
+      finally{ setBusy(false); }
+    });
+  };
+
+  const inputS = {width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.06)",
+    border:"1.5px solid rgba(255,255,255,0.12)",borderRadius:12,color:"#e8edf7",
+    fontFamily:"'DM Sans',sans-serif",fontSize:14,outline:"none"};
+
+  /* ── helpers ── */
+  const getFixedDenoms = c => c.fixedSenderDenominations || c.fixedRecipientDenominations || c.denominations || [];
+  const getCurrency    = c => c.senderCurrencyCode || c.denominationCurrencyCode || c.recipientCurrencyCode || "";
+  const getLogo        = c => c.logoUrls?.[0] || c.brand?.logoUrls?.[0] || c.imageUrl || null;
+
+  /* ── PURCHASE VIEW ── */
+  if(selCard){
+    const denoms   = getFixedDenoms(selCard);
+    const currency = getCurrency(selCard);
+    const logo     = getLogo(selCard);
+    const minV = selCard.minSenderDenomination ?? selCard.minDenomination;
+    const maxV = selCard.maxSenderDenomination ?? selCard.maxDenomination;
+    return(
+    <div style={{padding:"0 20px 40px",maxWidth:520,margin:"0 auto"}}>
+      <button onClick={()=>setSelCard(null)}
+        style={{background:"none",border:"none",color:"#6b7fa3",cursor:"pointer",
+          fontSize:13,fontFamily:"'DM Sans',sans-serif",marginBottom:14,padding:0,
+          display:"flex",alignItems:"center",gap:6}}>
+        ← Back to cards
+      </button>
+
+      {/* Card hero */}
+      <div style={{background:"rgba(123,97,255,0.08)",border:"1px solid rgba(123,97,255,0.3)",
+        borderRadius:18,padding:"18px 20px",marginBottom:20,display:"flex",gap:16,alignItems:"center"}}>
+        {logo
+          ? <img src={logo} alt={selCard.productName}
+              style={{width:80,height:54,objectFit:"contain",borderRadius:10,background:"#fff",padding:4,flexShrink:0}}/>
+          : <div style={{width:80,height:54,background:"rgba(123,97,255,0.2)",borderRadius:10,
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0}}>🎁</div>
+        }
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:700,color:"#e8edf7",fontSize:15,lineHeight:1.3,marginBottom:4}}>
+            {selCard.productName}
+          </div>
+          <div style={{fontSize:12,color:"#7b61ff"}}>{selCard.brand?.brandName||""}</div>
+          <div style={{fontSize:11,color:"#6b7fa3",marginTop:2}}>
+            {selCard.country?.name||selCard.countryCode||""} · {currency}
+          </div>
+        </div>
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {/* Fixed denominations */}
+        {denoms.length>0&&(
+          <div>
+            <div style={{fontSize:11,color:"#6b7fa3",fontWeight:700,letterSpacing:0.5,marginBottom:10}}>
+              SELECT AMOUNT ({currency})
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {denoms.map(d=>(
+                <button key={d} onClick={()=>setSelDenom(d)}
+                  style={{padding:"9px 18px",borderRadius:10,cursor:"pointer",
+                    border:`1.5px solid ${selDenom===d?"#7b61ff":"rgba(255,255,255,0.12)"}`,
+                    background:selDenom===d?"rgba(123,97,255,0.22)":"transparent",
+                    color:selDenom===d?"#c4b5fd":"#6b7fa3",
+                    fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:14,transition:"all .2s"}}>
+                  {currency} {d}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Range input */}
+        {denoms.length===0&&(minV!=null||maxV!=null)&&(
+          <div>
+            <div style={{fontSize:11,color:"#6b7fa3",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>
+              AMOUNT ({currency}) · Range: {minV} – {maxV}
+            </div>
+            <input style={inputS} type="number" min={minV||1} max={maxV||9999} step="1"
+              placeholder={`Enter amount (${currency})`}
+              value={selDenom||""}
+              onChange={e=>setSelDenom(parseFloat(e.target.value)||null)}
+              onFocus={e=>e.target.style.borderColor="#7b61ff"}
+              onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+          </div>
+        )}
+
+        {/* Quantity */}
+        <div>
+          <div style={{fontSize:11,color:"#6b7fa3",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>QUANTITY</div>
+          <input style={{...inputS,width:"auto",maxWidth:120}} type="number" min="1" max="10"
+            value={quantity} onChange={e=>setQuantity(Math.max(1,parseInt(e.target.value)||1))}
+            onFocus={e=>e.target.style.borderColor="#7b61ff"}
+            onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+        </div>
+
+        {/* Recipient email */}
+        <div>
+          <div style={{fontSize:11,color:"#6b7fa3",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>
+            RECIPIENT EMAIL *
+          </div>
+          <input style={inputS} type="email" placeholder="customer@email.com"
+            value={recipEmail} onChange={e=>setRecipEmail(e.target.value)}
+            onFocus={e=>e.target.style.borderColor="#7b61ff"}
+            onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+        </div>
+
+        {/* Sender name */}
+        <div>
+          <div style={{fontSize:11,color:"#6b7fa3",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>
+            SENDER NAME (optional)
+          </div>
+          <input style={inputS} type="text" placeholder="From…"
+            value={senderName} onChange={e=>setSenderName(e.target.value)}
+            onFocus={e=>e.target.style.borderColor="#7b61ff"}
+            onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+        </div>
+
+        {/* Total */}
+        {selDenom&&(
+          <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,
+            padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",
+            border:"1px solid rgba(255,255,255,0.08)"}}>
+            <div>
+              <div style={{fontSize:11,color:"#6b7fa3",fontWeight:600,marginBottom:2}}>TOTAL (GHS equiv.)</div>
+              <div style={{fontSize:11,color:"#6b7fa3"}}>{quantity} × {currency} {selDenom}</div>
+            </div>
+            <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#00d68f"}}>
+              GHS {(selDenom*quantity).toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        <button onClick={handleBuy} disabled={busy||!selDenom}
+          style={{width:"100%",padding:"15px",borderRadius:14,border:"none",
+            background:"linear-gradient(135deg,#7b61ff,#00e5ff)",color:"#fff",fontWeight:800,
+            fontSize:16,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+            opacity:(!selDenom||busy)?0.55:1,transition:"opacity .2s"}}>
+          {busy?<><span className="spinner"/>Processing…</>:"🎁 Buy Gift Card via Paystack"}
+        </button>
+      </div>
+    </div>
+    );
+  }
+
+  /* ── BROWSE VIEW ── */
+  return(
+  <div style={{padding:"0 16px 40px"}}>
+    {/* Header */}
+    <div style={{marginBottom:16}}>
+      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#e8edf7",marginBottom:4,
+        display:"flex",alignItems:"center",gap:10}}>
+        🎁 Gift Cards
+        {totalElements>0&&(
+          <span style={{fontSize:11,color:"#7b61ff",background:"rgba(123,97,255,0.15)",
+            border:"1px solid rgba(123,97,255,0.3)",borderRadius:20,padding:"3px 10px",fontWeight:700}}>
+            {totalElements.toLocaleString()} TOTAL
+          </span>
+        )}
+      </div>
+      <div style={{color:"#6b7fa3",fontSize:13}}>Buy digital gift cards delivered instantly by email.</div>
+    </div>
+
+    {/* Search + filter row */}
+    <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+      <input value={search} onChange={e=>setSearch(e.target.value)}
+        style={{...inputS,flex:1,minWidth:140,fontSize:13,padding:"9px 12px"}}
+        placeholder="Search product or brand…"
+        onFocus={e=>e.target.style.borderColor="#7b61ff"}
+        onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+      {countries.length>0&&(
+        <select value={countryFilter} onChange={e=>setCountryFilter(e.target.value)}
+          style={{...inputS,width:"auto",padding:"9px 12px",fontSize:13,flex:"0 0 auto",appearance:"none",cursor:"pointer"}}>
+          <option value="ALL">All Countries</option>
+          {countries.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+      )}
+    </div>
+
+    {/* Error */}
+    {error&&(
+      <div style={{background:"rgba(255,77,109,0.1)",border:"1px solid rgba(255,77,109,0.3)",
+        borderRadius:12,padding:"12px 16px",color:"#ff4d6d",fontSize:13,marginBottom:16}}>
+        ⚠ {error}
+        <button onClick={()=>fetchPage(1)}
+          style={{marginLeft:12,background:"none",border:"none",color:"#ff4d6d",cursor:"pointer",
+            fontWeight:700,fontSize:13,fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>
+          Retry
+        </button>
+      </div>
+    )}
+
+    {/* Loading */}
+    {loading&&(
+      <div style={{textAlign:"center",padding:"52px 16px",color:"#6b7fa3",fontSize:13,letterSpacing:0.5}}>
+        <span className="spinner" style={{width:28,height:28,borderTopColor:"#7b61ff",display:"inline-block",verticalAlign:"middle",marginRight:10}}/>
+        Loading gift cards…
+      </div>
+    )}
+
+    {/* Grid */}
+    {!loading&&!error&&(
+      <>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:8,marginBottom:16}}>
+          {filtered.map(c=>{
+            const logo   = getLogo(c);
+            const denoms = getFixedDenoms(c);
+            const cur    = getCurrency(c);
+            const minV   = c.minSenderDenomination ?? c.minDenomination;
+            const maxV   = c.maxSenderDenomination ?? c.maxDenomination;
+            return(
+              <div key={c.productId}
+                onClick={()=>{ setSelCard(c); setSelDenom(denoms[0]||null); setQuantity(1); }}
+                style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",
+                  borderRadius:12,padding:"12px",display:"flex",flexDirection:"column",gap:7,
+                  cursor:"pointer",transition:"border-color .2s,transform .2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(123,97,255,0.55)";e.currentTarget.style.transform="translateY(-2px)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.07)";e.currentTarget.style.transform="translateY(0)";}}>
+
+                {/* Logo / icon */}
+                <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                  {logo
+                    ? <img src={logo} alt={c.productName}
+                        style={{width:36,height:36,objectFit:"contain",background:"#fff",
+                          borderRadius:6,padding:2,flexShrink:0}}/>
+                    : <div style={{width:36,height:36,background:"rgba(123,97,255,0.15)",borderRadius:6,
+                        display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🎁</div>
+                  }
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:11,color:"#e6edf3",lineHeight:1.35,
+                      overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>
+                      {c.productName}
+                    </div>
+                    {c.brand?.brandName&&(
+                      <div style={{fontSize:10,color:"#6b7fa3",marginTop:1}}>{c.brand.brandName}</div>
+                    )}
+                    {c.country?.name&&(
+                      <div style={{fontSize:9,color:"#4b5568",marginTop:1}}>{c.country.name}</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Denominations preview */}
+                {denoms.length>0&&(
+                  <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                    {denoms.slice(0,4).map(d=>(
+                      <span key={d} style={{fontSize:9,background:"rgba(10,10,15,0.6)",
+                        border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,
+                        padding:"1px 5px",color:"#3fb950"}}>
+                        {cur} {d}
+                      </span>
+                    ))}
+                    {denoms.length>4&&(
+                      <span style={{fontSize:9,color:"#6b7fa3"}}>+{denoms.length-4}</span>
+                    )}
+                  </div>
+                )}
+                {denoms.length===0&&(minV!=null||maxV!=null)&&(
+                  <div style={{fontSize:9,color:"#3fb950"}}>
+                    {cur} {minV} – {maxV}
+                  </div>
+                )}
+
+                {/* Product ID */}
+                {c.productId&&(
+                  <div style={{fontSize:9,color:"#4b5568"}}>ID: {c.productId}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Empty state */}
+        {filtered.length===0&&!loading&&(
+          <div style={{textAlign:"center",padding:"40px 20px",color:"#6b7fa3"}}>
+            <div style={{fontSize:36,marginBottom:10}}>🔍</div>
+            <div>No gift cards match your search.</div>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages>1&&(
+          <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:12,paddingTop:8}}>
+            <button onClick={()=>fetchPage(currentPage-1)} disabled={currentPage<=1||loading}
+              style={{padding:"8px 18px",borderRadius:9,background:"rgba(123,97,255,0.15)",
+                border:"1px solid rgba(123,97,255,0.3)",color:currentPage<=1?"#4b5568":"#c4b5fd",
+                fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13,
+                cursor:currentPage<=1?"not-allowed":"pointer",transition:"all .2s"}}>
+              ← Prev
+            </button>
+            <span style={{fontSize:12,color:"#6b7fa3",fontWeight:500}}>
+              Page {currentPage} of {totalPages}
+            </span>
+            <button onClick={()=>fetchPage(currentPage+1)} disabled={currentPage>=totalPages||loading}
+              style={{padding:"8px 18px",borderRadius:9,background:"rgba(123,97,255,0.15)",
+                border:"1px solid rgba(123,97,255,0.3)",color:currentPage>=totalPages?"#4b5568":"#c4b5fd",
+                fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13,
+                cursor:currentPage>=totalPages?"not-allowed":"pointer",transition:"all .2s"}}>
+              Next →
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+  );
+}
+
+/* ── Reloadly: eSIM Tab ── */
+function ReloadlyESIMTab({reseller, launchPaystack, showToast, recordReloadlyOrder}){
+  const [packages,   setPackages]   = useState([]);
+  const [loading,    setLoading]    = useState(false);
+  const [busy,       setBusy]       = useState(false);
+  const [email,      setEmail]      = useState("");
+  const [selPkg,     setSelPkg]     = useState(null);
+  const [search,     setSearch]     = useState("");
+
+  useEffect(()=>{
+    setLoading(true);
+    rlFetch("esim","/esims/packages?size=50",{headers:{"Accept":"application/com.reloadly.esim-v1+json"}})
+      .then(d=>setPackages(Array.isArray(d)?d:d.content||[]))
+      .catch(e=>showToast("Could not load eSIM packages: "+e.message,"error"))
+      .finally(()=>setLoading(false));
+  },[]);
+
+  const filtered = packages.filter(p=>{
+    const s = search.toLowerCase();
+    return !s||(p.name||"").toLowerCase().includes(s)||(p.description||"").toLowerCase().includes(s);
+  });
+
+  const handleBuy = ()=>{
+    if(!email.trim()){ showToast("Enter your email to receive the eSIM","error"); return; }
+    if(!selPkg){ showToast("Select an eSIM package","error"); return; }
+    const amt = parseFloat(selPkg.price||0);
+    setBusy(true);
+    launchPaystack(amt, async(ref)=>{
+      try{
+        await rlFetch("esim","/esims",{
+          method:"POST",
+          headers:{"Accept":"application/com.reloadly.esim-v1+json"},
+          body:JSON.stringify({packageId:selPkg.packageId,email})
+        });
+        await recordReloadlyOrder({type:"esim",label:`eSIM: ${selPkg.name}`,amount:amt,phone:email,ref});
+        showToast("✅ eSIM ordered! Check your email.");
+        setSelPkg(null); setEmail("");
+      }catch(e){ showToast("eSIM failed: "+e.message,"error"); }
+      finally{ setBusy(false); }
+    });
+  };
+
+  const inputS = {width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.06)",border:"1.5px solid rgba(255,255,255,0.12)",borderRadius:12,color:"#e8edf7",fontFamily:"'DM Sans',sans-serif",fontSize:14,outline:"none"};
+
+  return(
+  <div style={{padding:"0 20px 40px",maxWidth:520,margin:"0 auto"}}>
+    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#e8edf7",marginBottom:4}}>📶 eSIM</div>
+    <div style={{color:"#6b7fa3",fontSize:14,marginBottom:20}}>Travel data eSIMs delivered to your email instantly.</div>
+
+    <input value={search} onChange={e=>setSearch(e.target.value)}
+      style={{...inputS,marginBottom:16}}
+      placeholder="Search by country or region…"
+      onFocus={e=>e.target.style.borderColor="#00e5ff"}
+      onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+
+    {loading?<div style={{textAlign:"center",padding:"40px"}}><span className="spinner" style={{width:32,height:32,borderTopColor:"#00e5ff"}}/></div>:(
+      <>
+        {!selPkg&&(
+          <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:400,overflowY:"auto"}}>
+            {filtered.slice(0,40).map(p=>(
+              <div key={p.packageId||p.id} onClick={()=>setSelPkg(p)}
+                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",cursor:"pointer",transition:"all .2s",display:"flex",justifyContent:"space-between",alignItems:"center"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(0,229,255,0.4)"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(255,255,255,0.08)"}>
+                <div>
+                  <div style={{fontWeight:700,color:"#e8edf7",fontSize:14}}>{p.name||p.description}</div>
+                  <div style={{fontSize:11,color:"#6b7fa3",marginTop:2}}>{p.data||""} {p.duration?"· "+p.duration+" days":""} {p.countries?.length?"· "+p.countries.length+" countries":""}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#00e5ff"}}>GHS {parseFloat(p.price||0).toFixed(2)}</div>
+                </div>
+              </div>
+            ))}
+            {filtered.length===0&&<div style={{color:"#6b7fa3",textAlign:"center",padding:"32px"}}>No packages found.</div>}
+          </div>
+        )}
+
+        {selPkg&&(
+          <div>
+            <button onClick={()=>setSelPkg(null)} style={{background:"none",border:"none",color:"#6b7fa3",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",marginBottom:14,padding:0}}>← Back to packages</button>
+            <div style={{background:"rgba(0,229,255,0.06)",border:"1px solid rgba(0,229,255,0.2)",borderRadius:16,padding:"16px",marginBottom:18}}>
+              <div style={{fontWeight:700,color:"#e8edf7",fontSize:16,marginBottom:6}}>{selPkg.name||selPkg.description}</div>
+              {selPkg.data&&<div style={{fontSize:13,color:"#6b7fa3",marginBottom:3}}>📊 Data: {selPkg.data}</div>}
+              {selPkg.duration&&<div style={{fontSize:13,color:"#6b7fa3",marginBottom:3}}>⏱️ Valid: {selPkg.duration} days</div>}
+              {selPkg.countries?.length&&<div style={{fontSize:13,color:"#6b7fa3"}}>🌍 {selPkg.countries.length} countries</div>}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div>
+                <div style={{fontSize:12,color:"#6b7fa3",fontWeight:600,marginBottom:7}}>YOUR EMAIL (eSIM sent here) *</div>
+                <input style={inputS} type="email" placeholder="you@email.com" value={email} onChange={e=>setEmail(e.target.value)}
+                  onFocus={e=>e.target.style.borderColor="#00e5ff"}
+                  onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"12px 16px",display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"#6b7fa3"}}>Total</span>
+                <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"#00d68f"}}>GHS {parseFloat(selPkg.price||0).toFixed(2)}</span>
+              </div>
+              <button onClick={handleBuy} disabled={busy}
+                style={{width:"100%",padding:"15px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#00e5ff,#7b61ff)",color:"#fff",fontWeight:800,fontSize:16,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                {busy?<><span className="spinner"/>Processing…</>:"📶 Buy eSIM via Paystack"}
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+  );
+}
+
+/* ── Reloadly: Subscriptions Tab ── */
+function ReloadlySubscriptionsTab({reseller, launchPaystack, showToast, recordReloadlyOrder}){
+  const [plans,     setPlans]     = useState([]);
+  const [loading,   setLoading]   = useState(false);
+  const [busy,      setBusy]      = useState(false);
+  const [selPlan,   setSelPlan]   = useState(null);
+  const [accNumber, setAccNumber] = useState("");
+  const [email,     setEmail]     = useState("");
+  const [search,    setSearch]    = useState("");
+
+  useEffect(()=>{
+    setLoading(true);
+    // Utilities API: bill payments / subscriptions
+    rlFetch("subscriptions","/utilities/billers?size=60&type=MOBILE_MONEY",{headers:{"Accept":"application/com.reloadly.utilities-v1+json"}})
+      .then(d=>setPlans(Array.isArray(d)?d:d.content||[]))
+      .catch(()=>{
+        return rlFetch("subscriptions","/utilities/billers?size=60",{headers:{"Accept":"application/com.reloadly.utilities-v1+json"}})
+          .then(d=>setPlans(Array.isArray(d)?d:d.content||[]));
+      })
+      .catch(e=>showToast("Could not load subscriptions: "+e.message,"error"))
+      .finally(()=>setLoading(false));
+  },[]);
+
+  const filtered = plans.filter(p=>{
+    const s = search.toLowerCase();
+    return !s||(p.name||"").toLowerCase().includes(s)||(p.countryCode||"").toLowerCase().includes(s);
+  });
+
+  const handleBuy = ()=>{
+    if(!accNumber.trim()){ showToast("Enter account/subscriber number","error"); return; }
+    if(!selPlan){ showToast("Select a plan","error"); return; }
+    const amt = parseFloat(selPlan.localTransactionCurrencyCode==="GHS"?(selPlan.minLocalTransactionAmount||5):5);
+    setBusy(true);
+    launchPaystack(amt, async(ref)=>{
+      try{
+        await rlFetch("subscriptions","/utilities/payments",{
+          method:"POST",
+          headers:{"Accept":"application/com.reloadly.utilities-v1+json"},
+          body:JSON.stringify({billerId:selPlan.id,subscriberAccountNumber:accNumber,amount:amt,useLocalAmount:true})
+        });
+        await recordReloadlyOrder({type:"subscription",label:`${selPlan.name} subscription`,amount:amt,phone:accNumber,ref});
+        showToast("✅ Subscription payment sent!");
+        setSelPlan(null); setAccNumber(""); setEmail("");
+      }catch(e){ showToast("Payment failed: "+e.message,"error"); }
+      finally{ setBusy(false); }
+    });
+  };
+
+  const inputS = {width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.06)",border:"1.5px solid rgba(255,255,255,0.12)",borderRadius:12,color:"#e8edf7",fontFamily:"'DM Sans',sans-serif",fontSize:14,outline:"none"};
+
+  return(
+  <div style={{padding:"0 20px 40px",maxWidth:520,margin:"0 auto"}}>
+    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#e8edf7",marginBottom:4}}>📺 Subscriptions</div>
+    <div style={{color:"#6b7fa3",fontSize:14,marginBottom:20}}>Pay bills and subscriptions — TV, utilities, and more.</div>
+
+    <input value={search} onChange={e=>setSearch(e.target.value)}
+      style={{...inputS,marginBottom:16}}
+      placeholder="Search services…"
+      onFocus={e=>e.target.style.borderColor="#ffd166"}
+      onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+
+    {loading?<div style={{textAlign:"center",padding:"40px"}}><span className="spinner" style={{width:32,height:32,borderTopColor:"#ffd166"}}/></div>:(
+      <>
+        {!selPlan&&(
+          <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:420,overflowY:"auto"}}>
+            {filtered.slice(0,60).map(p=>(
+              <div key={p.id} onClick={()=>setSelPlan(p)}
+                style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",cursor:"pointer",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(255,209,102,0.5)"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(255,255,255,0.08)"}>
+                <div>
+                  <div style={{fontWeight:700,color:"#e8edf7",fontSize:14}}>{p.name}</div>
+                  <div style={{fontSize:11,color:"#6b7fa3",marginTop:2}}>{p.countryCode||""} {p.type||""}</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 15l5-5-5-5" stroke="#ffd166" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+            ))}
+            {filtered.length===0&&<div style={{color:"#6b7fa3",textAlign:"center",padding:"32px"}}>No services found.</div>}
+          </div>
+        )}
+
+        {selPlan&&(
+          <div>
+            <button onClick={()=>setSelPlan(null)} style={{background:"none",border:"none",color:"#6b7fa3",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",marginBottom:14,padding:0}}>← Back</button>
+            <div style={{background:"rgba(255,209,102,0.06)",border:"1px solid rgba(255,209,102,0.25)",borderRadius:16,padding:"14px 16px",marginBottom:18}}>
+              <div style={{fontWeight:700,color:"#e8edf7",fontSize:15}}>{selPlan.name}</div>
+              {selPlan.countryCode&&<div style={{fontSize:12,color:"#6b7fa3",marginTop:2}}>{selPlan.countryCode} · {selPlan.type||"Bill Payment"}</div>}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div>
+                <div style={{fontSize:12,color:"#6b7fa3",fontWeight:600,marginBottom:7}}>ACCOUNT / SUBSCRIBER NUMBER *</div>
+                <input style={inputS} type="text" placeholder="Your account number" value={accNumber} onChange={e=>setAccNumber(e.target.value)}
+                  onFocus={e=>e.target.style.borderColor="#ffd166"}
+                  onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
+              </div>
+              {selPlan.minLocalTransactionAmount&&(
+                <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"12px 16px",display:"flex",justifyContent:"space-between"}}>
+                  <span style={{color:"#6b7fa3",fontSize:13}}>Min / Max</span>
+                  <span style={{color:"#ffd166",fontWeight:600,fontSize:13}}>{selPlan.localTransactionCurrencyCode||"GHS"} {selPlan.minLocalTransactionAmount} – {selPlan.maxLocalTransactionAmount}</span>
+                </div>
+              )}
+              <button onClick={handleBuy} disabled={busy}
+                style={{width:"100%",padding:"15px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#ffd166,#ff9a3c)",color:"#000",fontWeight:800,fontSize:16,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                {busy?<><span className="spinner" style={{borderTopColor:"#000"}}/>Processing…</>:"📺 Pay via Paystack"}
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+  );
+}
+
 /* ── StoreFront (customer-facing purchase page) ── */
 function StoreFront({slug}){
   const [reseller,  setReseller]  = useState(null);
@@ -4152,7 +4946,7 @@ function StoreFront({slug}){
     Telecel: <div style={{width:58,height:58,background:"linear-gradient(135deg,#007AFF,#5856D6)",borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:900,fontSize:18,fontFamily:"sans-serif",boxShadow:"0 4px 20px rgba(0,122,255,0.4)"}}>t</div>,
   };
 
-  const [sfTab, setSfTab] = useState("bundles"); // "bundles"|"social"|"track"
+  const [sfTab, setSfTab] = useState("bundles"); // "bundles"|"giftcards"|"esim"|"utilities"|"social"|"track"
   const [socialSelected, setSocialSelected] = useState(null);
   const [socialQty, setSocialQty] = useState(1000);
   const [socialLink, setSocialLink] = useState("");
@@ -4360,7 +5154,7 @@ function StoreFront({slug}){
         {/* Tab switcher */}
         <div style={{overflowX:"auto",paddingBottom:4,marginBottom:24}}>
           <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:14,padding:4,border:"1px solid rgba(255,255,255,0.08)",minWidth:"max-content",gap:2}}>
-            {[["bundles","📦","Bundles"],["social","📱","Social"],["track","🔍","Track"]].map(([id,icon,label])=>(
+            {[["bundles","📦","Bundles"],["giftcards","🎁","Gift Cards"],["esim","📶","eSIM"],["utilities","🔌","Utilities"],["social","📱","Social"],["track","🔍","Track"]].map(([id,icon,label])=>(
               <button key={id} onClick={()=>setSfTab(id)}
                 style={{flex:"0 0 auto",padding:"9px 12px",border:"none",borderRadius:10,cursor:"pointer",
                   fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:12,transition:"all .2s",
@@ -4464,6 +5258,21 @@ function StoreFront({slug}){
             </div>
           )}
         </div>
+      )}
+
+      {/* RELOADLY: eSIM TAB */}
+      {sfTab==="esim"&&(
+        <ReloadlyESIMTab reseller={reseller} launchPaystack={launchPaystack} showToast={showToast} recordReloadlyOrder={recordReloadlyOrder}/>
+      )}
+
+      {/* RELOADLY: UTILITIES TAB */}
+      {sfTab==="utilities"&&(
+        <ReloadlySubscriptionsTab reseller={reseller} launchPaystack={launchPaystack} showToast={showToast} recordReloadlyOrder={recordReloadlyOrder}/>
+      )}
+
+      {/* RELOADLY: GIFT CARDS TAB */}
+      {sfTab==="giftcards"&&(
+        <ReloadlyGiftCardsTab reseller={reseller} launchPaystack={launchPaystack} showToast={showToast} recordReloadlyOrder={recordReloadlyOrder}/>
       )}
 
       {/* SOCIAL MEDIA TAB */}
@@ -4697,10 +5506,13 @@ function AndroidInstallPopup(){
 }
 function App(){
   // Resolve route + session synchronously to avoid blank-screen flash
-  const _storeMatch = window.location.pathname.match(/^\/store\/([a-z0-9]+)$/);
+  // Supports both /store/:slug (Vercel rewrites) and #/store/:slug (hash-based fallback)
+  const _pathMatch = window.location.pathname.match(/^\/store\/([a-z0-9]+)\/?$/i);
+  const _hashMatch = window.location.hash.match(/^#\/store\/([a-z0-9]+)\/?$/i);
+  const _storeSlug = (_pathMatch && _pathMatch[1]) || (_hashMatch && _hashMatch[1]) || null;
   const _savedReseller = (()=>{ try{ const s=sessionStorage.getItem("reseller"); return s?JSON.parse(s):null; }catch{ return null; } })();
 
-  const [page, setPage] = useState(_storeMatch ? {type:"store",slug:_storeMatch[1]} : null);
+  const [page, setPage] = useState(_storeSlug ? {type:"store",slug:_storeSlug.toLowerCase()} : null);
   const [reseller, setReseller] = useState(_savedReseller);
   const [showAuth, setShowAuth] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
