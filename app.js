@@ -248,7 +248,7 @@ function Landing({onSignup, onLogin, onSecretTap}){
         justifyContent:"space-between",borderBottom:`1px solid ${G.border}`,
         background:`${G.bg}ee`,backdropFilter:"blur(12px)",
         position:"sticky",top:0,zIndex:100}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}} onClick={onSecretTap} style={{cursor:"default",userSelect:"none"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,cursor:"default",userSelect:"none"}} onClick={onSecretTap}>
           <div style={{width:30,height:30,background:`linear-gradient(135deg,${G.accent},${G.accent2})`,
             borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",
             fontWeight:900,fontSize:14,color:"#fff"}}>D</div>
@@ -1778,7 +1778,7 @@ function Dashboard({reseller:init,onLogout}){
         borderTop:"1px solid rgba(0,255,198,0.08)",
         boxShadow:"0 -8px 40px rgba(0,0,0,0.7)",
         display:"flex",padding:"6px 4px calc(env(safe-area-inset-bottom,0px) + 6px)",gap:2}}>
-        {navItems.map(n=>{
+        {allNavItems.map(n=>{
           const active = tab===n.id;
           return(
           <button key={n.id} onClick={()=>setTab(n.id)}
@@ -4152,8 +4152,9 @@ function StoreFront({slug}){
     const bundleStr = selected.label+" - GHS"+amount.toFixed(2);
     const orderId = genOrderId();
     try{
+      // Storefront orders are paid by customer via Paystack — only update sales stats, not wallet
       await sb("resellers?id=eq."+reseller.id,{method:"PATCH",prefer:"return=representation",
-        body:JSON.stringify({wallet_balance:(reseller.wallet_balance||0),total_sales:(reseller.total_sales||0)+amount,total_customers:(reseller.total_customers||0)+1})});
+        body:JSON.stringify({total_sales:(reseller.total_sales||0)+amount,total_customers:(reseller.total_customers||0)+1})});
       await sb("transactions",{method:"POST",prefer:"return=representation",
         body:JSON.stringify({reseller_id:reseller.id,network:network,bundle:bundleStr,amount,customer_phone:phone,customer_email:email||null,status:"pending",type:"data_purchase",payment_ref:paystackRef,order_ref:orderId})});
       setDone({bundle:bundleStr,phone,amount,orderId});
@@ -4264,7 +4265,7 @@ function StoreFront({slug}){
         </div>
 
         <div style={{display:"flex",gap:10,flexDirection:"column"}}>
-          <button onClick={()=>setSfTab("track")}
+          <button onClick={()=>{const id=done.orderId;setDone(null);setSelected(null);setPhone("");setEmail("");setSfTab("track");}}
             style={{background:"rgba(0,229,255,0.12)",border:"1.5px solid rgba(0,229,255,0.4)",borderRadius:12,padding:"12px",color:"#00e5ff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
             🔍 Track This Order
           </button>
@@ -4301,7 +4302,7 @@ function StoreFront({slug}){
         </div>
 
         <div style={{display:"flex",gap:10,flexDirection:"column"}}>
-          <button onClick={()=>setSfTab("track")}
+          <button onClick={()=>{setSocialDone(null);setSocialSelected(null);setSocialLink("");setSocialUsername("");setSfTab("track");}}
             style={{background:"rgba(0,229,255,0.12)",border:"1.5px solid rgba(0,229,255,0.4)",borderRadius:12,padding:"12px",color:"#00e5ff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
             🔍 Track This Order
           </button>

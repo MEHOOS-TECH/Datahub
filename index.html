@@ -55,15 +55,19 @@
 <script src="https://js.paystack.co/v1/inline.js" defer></script>
 
 <!-- App -->
-<script type="text/babel" src="app.js" data-presets="react"></script>
+<script type="text/babel" src="app.js" data-presets="react" data-type="module"></script>
 
 <script>
   // Hide splash once React mounts
   const observer = new MutationObserver(()=>{
     if(document.querySelector('#root > *')){
-      const s = document.getElementById('splash');
-      if(s){ s.style.opacity='0'; s.style.transition='opacity 0.4s'; setTimeout(()=>s.remove(),450); }
       observer.disconnect();
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          const s = document.getElementById('splash');
+          if(s){ s.style.opacity='0'; s.style.transition='opacity 0.4s'; setTimeout(()=>s.remove(),450); }
+        });
+      });
     }
   });
   observer.observe(document.getElementById('root'),{childList:true});
