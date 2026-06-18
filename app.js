@@ -45,7 +45,7 @@ const MTN_BUNDLES = [
   { id: "mtn_3gb", label: "3GB", basePrice: 12.8, network: "MTN" },
   { id: "mtn_4gb", label: "4GB", basePrice: 17.0, network: "MTN" },
   { id: "mtn_5gb", label: "5GB", basePrice: 22.0, network: "MTN" },
-  { id: "mtn_10gb", label: "10GB", basePrice: 41.0, network: "MTN" },
+  { id: "mtn_12gb", label: "12GB", basePrice: 35.0, network: "MTN" },
   { id: "mtn_25gb", label: "25GB", basePrice: 98.0, network: "MTN" },
   { id: "mtn_50gb", label: "50GB", basePrice: 193.0, network: "MTN" },
 ];
