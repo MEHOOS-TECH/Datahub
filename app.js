@@ -191,6 +191,14 @@ const SB = {
     });
     if (!res.ok) {
       const errText = await res.text();
+      // If Supabase rejects because a column doesn't exist in the schema cache (PGRST204),
+      // strip that field and retry once rather than failing the whole request.
+      const match = errText.match(/Could not find the '([^']+)' column/);
+      if (res.status === 400 && match && Object.prototype.hasOwnProperty.call(body, match[1])) {
+        const retryBody = Object.assign({}, body);
+        delete retryBody[match[1]];
+        return this.post(table, retryBody, opts);
+      }
       throw new Error("Supabase POST " + table + " failed: " + res.status + " " + errText);
     }
     return res.json();
@@ -3143,20 +3151,7 @@ function ManualOrderModal({ onClose, onDone }) {
         payment_ref: "MANUAL-" + Date.now(),
         order_ref: orderRef,
       };
-      try {
-        await SB.post("transactions", payload);
-      } catch (innerErr) {
-        const msg = innerErr && innerErr.message ? innerErr.message : "";
-        if (msg.indexOf("profit") !== -1) {
-          // profit column likely doesn't exist on this Supabase table yet — retry without it
-          const fallback = Object.assign({}, payload);
-          delete fallback.profit;
-          await SB.post("transactions", fallback);
-          toast("Order created, but profit wasn't saved — add a 'profit' column to your transactions table in Supabase to track it.", "error");
-        } else {
-          throw innerErr;
-        }
-      }
+      await SB.post("transactions", payload);
       if (resellerId) {
         const r = resellers.find((x) => x.id === resellerId);
         if (r) {
