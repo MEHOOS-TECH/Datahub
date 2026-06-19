@@ -45,7 +45,7 @@ const MTN_BUNDLES = [
   { id: "mtn_3gb", label: "3GB", basePrice: 12.8, network: "MTN" },
   { id: "mtn_4gb", label: "4GB", basePrice: 17.0, network: "MTN" },
   { id: "mtn_5gb", label: "5GB", basePrice: 22.0, network: "MTN" },
-  { id: "mtn_12gb", label: "12GB", basePrice: 35.0, network: "MTN" },
+  { id: "mtn_10gb", label: "10GB", basePrice: 41.0, network: "MTN" },
   { id: "mtn_25gb", label: "25GB", basePrice: 98.0, network: "MTN" },
   { id: "mtn_50gb", label: "50GB", basePrice: 193.0, network: "MTN" },
 ];
@@ -2445,6 +2445,7 @@ function AdminDashboardTab() {
         const pendingOrders = (txns || []).filter((t) => t.admin_status === "Pending").length;
         const completed = (txns || []).filter((t) => t.admin_status === "Completed");
         const platformProfit = completed.reduce((s, t) => {
+          if (t.profit != null && t.profit !== "") return s + Number(t.profit);
           const base = findBundle(matchBundleId(t.bundle));
           return s + (Number(t.amount) - (base ? base.basePrice : 0));
         }, 0);
@@ -2646,7 +2647,7 @@ function AdminOrdersTab() {
   }
 
   function exportCSV() {
-    const headers = ["order_ref", "network", "bundle", "amount", "customer_phone", "customer_email", "status", "admin_status", "type", "created_at"];
+    const headers = ["order_ref", "network", "bundle", "amount", "profit", "customer_phone", "customer_email", "status", "admin_status", "type", "created_at"];
     const rows = filtered.map((o) => headers.map((h) => JSON.stringify(o[h] != null ? o[h] : "")).join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -2691,7 +2692,7 @@ function AdminOrdersTab() {
       ) : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>Ref</th><th>Network</th><th>Bundle</th><th>Amount</th><th>Phone</th><th>Type</th><th>Status</th><th>Date</th><th></th></tr></thead>
+            <thead><tr><th>Ref</th><th>Network</th><th>Bundle</th><th>Amount</th><th>Profit</th><th>Phone</th><th>Type</th><th>Status</th><th>Date</th><th></th></tr></thead>
             <tbody>
               {filtered.map((o) => (
                 <tr key={o.id}>
@@ -2699,6 +2700,7 @@ function AdminOrdersTab() {
                   <td>{o.network}</td>
                   <td>{o.bundle}</td>
                   <td>{formatGHS(o.amount)}</td>
+                  <td style={{ color: G.green }}>{o.profit != null && o.profit !== "" ? formatGHS(o.profit) : "—"}</td>
                   <td className="muted">{o.customer_phone}</td>
                   <td className="muted">{o.type}</td>
                   <td><StatusBadge status={o.admin_status} /></td>
@@ -3081,6 +3083,7 @@ function ManualOrderModal({ onClose, onDone }) {
   const [network, setNetwork] = useState("MTN");
   const [bundleId, setBundleId] = useState(MTN_BUNDLES[0].id);
   const [amount, setAmount] = useState("");
+  const [profit, setProfit] = useState("");
   const [phone, setPhone] = useState("");
   const [adminStatus, setAdminStatus] = useState("Completed");
   const [busy, setBusy] = useState(false);
@@ -3089,7 +3092,10 @@ function ManualOrderModal({ onClose, onDone }) {
   const selectedBundle = networkBundles.find((b) => b.id === bundleId) || networkBundles[0];
 
   useEffect(() => {
-    if (selectedBundle) setAmount(String(selectedBundle.price));
+    if (selectedBundle) {
+      setAmount(String(selectedBundle.basePrice));
+      setProfit("0");
+    }
   }, [network, bundleId]);
 
   async function handleSubmit(e) {
@@ -3103,6 +3109,11 @@ function ManualOrderModal({ onClose, onDone }) {
       toast("Enter a valid amount.", "error");
       return;
     }
+    const profitVal = profit === "" ? 0 : parseFloat(profit);
+    if (isNaN(profitVal)) {
+      toast("Enter a valid profit amount (or 0).", "error");
+      return;
+    }
     setBusy(true);
     try {
       const orderRef = generateOrderRef();
@@ -3111,6 +3122,7 @@ function ManualOrderModal({ onClose, onDone }) {
         network,
         bundle: selectedBundle ? selectedBundle.label : "Manual Entry",
         amount: amt,
+        profit: profitVal,
         customer_phone: phone,
         customer_email: null,
         status: "success",
@@ -3150,6 +3162,13 @@ function ManualOrderModal({ onClose, onDone }) {
         <div>
           <label className="field-label">Amount (GHS)</label>
           <input className="surface-input" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+        </div>
+        <div>
+          <label className="field-label">Profit (GHS)</label>
+          <input className="surface-input" type="number" step="0.01" value={profit} onChange={(e) => setProfit(e.target.value)} placeholder="0.00" />
+          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            How much of the amount above is profit on this order. Used in platform &amp; reseller earnings reports.
+          </div>
         </div>
         <div>
           <label className="field-label">Customer Phone</label>
