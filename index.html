@@ -628,17 +628,25 @@ const SB = {
 };
 
 /* ---------------- Paystack helper ---------------- */
-function payWithPaystack({ email, amount, phone, metadata, onSuccess, onClose }) {
+function payWithPaystack({ email, amount, phone, metadata, customFields, onSuccess, onClose }) {
   if (!window.PaystackPop) {
     alert("Payment system failed to load. Please refresh and try again.");
     return;
+  }
+  const fullMetadata = Object.assign({}, metadata || {});
+  if (customFields && customFields.length) {
+    fullMetadata.custom_fields = customFields.map((f) => ({
+      display_name: f.label,
+      variable_name: f.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+      value: f.value,
+    }));
   }
   const handler = window.PaystackPop.setup({
     key: PAYSTACK_PUBLIC_KEY,
     email: email || phone + "@gendata.gh",
     amount: Math.round(Number(amount) * 100),
     currency: "GHS",
-    metadata: metadata || {},
+    metadata: fullMetadata,
     callback: function (response) {
       onSuccess && onSuccess(response);
     },
@@ -1058,6 +1066,10 @@ function DirectBuyModal({ onClose, onSuccess }) {
       phone: customerPhone,
       amount: bundle.basePrice,
       metadata: { network, bundle: bundle.label },
+      customFields: [
+        { label: "Recipient Phone", value: customerPhone.trim() },
+        { label: "Product", value: network + " " + bundle.label },
+      ],
       onSuccess: async (resp) => {
         try {
           const orderRef = generateOrderRef();
@@ -1605,6 +1617,11 @@ function SFBundlesTab({ reseller, priceFor, toast }) {
       phone: customerPhone,
       amount: price,
       metadata: { network, bundle: bundle.label, store: reseller.store_slug },
+      customFields: [
+        { label: "Recipient Phone", value: customerPhone.trim() },
+        { label: "Product", value: network + " " + bundle.label },
+        { label: "Store", value: reseller.store_name },
+      ],
       onSuccess: async (resp) => {
         try {
           const orderRef = generateOrderRef();
@@ -1722,6 +1739,11 @@ function SFSocialTab({ reseller, toast }) {
       phone: target,
       amount,
       metadata: { service: service.name, quantity, store: reseller.store_slug },
+      customFields: [
+        { label: "Recipient Target", value: target.trim() },
+        { label: "Product", value: service.name + " x" + quantity },
+        { label: "Store", value: reseller.store_name },
+      ],
       onSuccess: async (resp) => {
         try {
           const orderRef = generateOrderRef();
