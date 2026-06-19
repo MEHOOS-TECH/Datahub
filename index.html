@@ -3525,7 +3525,7 @@ function ManualOrderModal({ onClose, onDone }) {
     setBusy(true);
     try {
       const orderRef = generateOrderRef();
-      await SB.post("transactions", {
+      const payload = {
         reseller_id: resellerId || null,
         network,
         bundle: selectedBundle ? selectedBundle.label : "Manual Entry",
@@ -3538,7 +3538,21 @@ function ManualOrderModal({ onClose, onDone }) {
         type: "data_purchase",
         payment_ref: "MANUAL-" + Date.now(),
         order_ref: orderRef,
-      });
+      };
+      try {
+        await SB.post("transactions", payload);
+      } catch (innerErr) {
+        const msg = innerErr && innerErr.message ? innerErr.message : "";
+        if (msg.indexOf("profit") !== -1) {
+          // profit column likely doesn't exist on this Supabase table yet — retry without it
+          const fallback = Object.assign({}, payload);
+          delete fallback.profit;
+          await SB.post("transactions", fallback);
+          toast("Order created, but profit wasn't saved — add a 'profit' column to your transactions table in Supabase to track it.", "error");
+        } else {
+          throw innerErr;
+        }
+      }
       if (resellerId) {
         const r = resellers.find((x) => x.id === resellerId);
         if (r) {
@@ -3551,7 +3565,8 @@ function ManualOrderModal({ onClose, onDone }) {
       toast("Manual order created: " + orderRef, "success");
       onDone();
     } catch (err) {
-      toast("Failed to create order.", "error");
+      console.error(err);
+      toast("Failed to create order: " + (err && err.message ? err.message : "unknown error"), "error");
     } finally {
       setBusy(false);
     }
