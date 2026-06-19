@@ -1968,6 +1968,7 @@ function DashOverviewTab({ reseller, setTab }) {
           admin_status: "eq.Completed",
         });
         const totalProfit = (completed || []).reduce((sum, t) => {
+          if (t.profit != null && t.profit !== "") return sum + Number(t.profit);
           const base = findBundle(matchBundleId(t.bundle));
           const baseCost = base ? base.basePrice : 0;
           return sum + (Number(t.amount) - baseCost);
@@ -2386,9 +2387,14 @@ function DashEarningsTab({ reseller }) {
   const byBundle = useMemo(() => {
     const map = {};
     completed.forEach((t) => {
-      const base = findBundle(matchBundleId(t.bundle));
-      const baseCost = base ? base.basePrice : 0;
-      const profit = Number(t.amount) - baseCost;
+      let profit;
+      if (t.profit != null && t.profit !== "") {
+        profit = Number(t.profit);
+      } else {
+        const base = findBundle(matchBundleId(t.bundle));
+        const baseCost = base ? base.basePrice : 0;
+        profit = Number(t.amount) - baseCost;
+      }
       const key = t.bundle;
       if (!map[key]) map[key] = { label: key, count: 0, profit: 0 };
       map[key].count += 1;
@@ -3482,10 +3488,16 @@ function ManualOrderModal({ onClose, onDone }) {
   const [profit, setProfit] = useState("");
   const [phone, setPhone] = useState("");
   const [adminStatus, setAdminStatus] = useState("Completed");
+  const [resellers, setResellers] = useState([]);
+  const [resellerId, setResellerId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const networkBundles = BUNDLES_BY_NETWORK[network] || [];
   const selectedBundle = networkBundles.find((b) => b.id === bundleId) || networkBundles[0];
+
+  useEffect(() => {
+    SB.get("resellers", { order: "store_name.asc" }).then((rows) => setResellers(rows || []));
+  }, []);
 
   useEffect(() => {
     if (selectedBundle) {
@@ -3514,7 +3526,7 @@ function ManualOrderModal({ onClose, onDone }) {
     try {
       const orderRef = generateOrderRef();
       await SB.post("transactions", {
-        reseller_id: null,
+        reseller_id: resellerId || null,
         network,
         bundle: selectedBundle ? selectedBundle.label : "Manual Entry",
         amount: amt,
@@ -3527,6 +3539,15 @@ function ManualOrderModal({ onClose, onDone }) {
         payment_ref: "MANUAL-" + Date.now(),
         order_ref: orderRef,
       });
+      if (resellerId) {
+        const r = resellers.find((x) => x.id === resellerId);
+        if (r) {
+          await SB.patch("resellers", { id: "eq." + r.id }, {
+            total_sales: (r.total_sales || 0) + amt,
+            total_customers: (r.total_customers || 0) + 1,
+          });
+        }
+      }
       toast("Manual order created: " + orderRef, "success");
       onDone();
     } catch (err) {
@@ -3539,6 +3560,18 @@ function ManualOrderModal({ onClose, onDone }) {
   return (
     <Modal onClose={onClose} title="Create Manual Order">
       <form onSubmit={handleSubmit} className="flex-col gap-12">
+        <div>
+          <label className="field-label">Store (optional)</label>
+          <select className="surface-input" value={resellerId} onChange={(e) => setResellerId(e.target.value)}>
+            <option value="">No store — platform direct sale</option>
+            {resellers.map((r) => (
+              <option key={r.id} value={r.id}>{r.store_name}</option>
+            ))}
+          </select>
+          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            Pick a store to credit this order's sales and earnings to that reseller. Leave unselected for a direct platform sale.
+          </div>
+        </div>
         <div>
           <label className="field-label">Network</label>
           <select className="surface-input" value={network} onChange={(e) => { setNetwork(e.target.value); setBundleId(BUNDLES_BY_NETWORK[e.target.value][0].id); }}>
