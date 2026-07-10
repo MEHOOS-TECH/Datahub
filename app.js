@@ -1,0 +1,2709 @@
+/* ============================================================
+   DataResell Pro / GenData GH — Application Logic
+   React 18 (UMD) + Babel Standalone, no build step.
+   Raw fetch() against Supabase REST — no SDK.
+   ============================================================ */
+
+const { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } = React;
+
+/* ---------------- Config / credentials ---------------- */
+const SUPABASE_URL = "https://lbflhbogfhtnjjnxjntb.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZmxoYm9nZmh0bmpqbnhqbnRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMjU1MTAsImV4cCI6MjA5NTkwMTUxMH0.R4OHHkHHGGhC_9mkUbuQ52Hu75340X4H-MvadAqG7jQ";
+const PAYSTACK_PUBLIC_KEY = "pk_live_d093131f6a1823be2cf892e9378027de29ddc7b1";
+const ADMIN_PHONE = "0241994988";
+const ADMIN_PASSWORD = "Admin@DataResell2025";
+const APK_URL = SUPABASE_URL + "/storage/v1/object/public/store-assets/6a252f5930a5c04a5ef163ae.apk";
+const WHATSAPP_NUMBER = "233557877493";
+
+/* ---------------- Design tokens (mirrors style.css :root) ---------------- */
+const G = {
+  bg: "#0a0f1e",
+  surface: "#111827",
+  card: "#161d30",
+  border: "#1e2d45",
+  accent: "#00e5ff",
+  accent2: "#7b61ff",
+  green: "#00d68f",
+  red: "#ff4d6d",
+  text: "#e8edf7",
+  muted: "#6b7fa3",
+  gold: "#ffd166",
+};
+
+const STATUS_COLORS = {
+  Pending: G.gold,
+  Processing: G.accent,
+  Completed: G.green,
+  Failed: G.red,
+  Refunded: G.accent2,
+};
+
+/* ---------------- Data bundles ---------------- */
+const MTN_BUNDLES = [
+  { id: "mtn_1gb", label: "1GB", basePrice: 4.4, network: "MTN" },
+  { id: "mtn_2gb", label: "2GB", basePrice: 8.7, network: "MTN" },
+  { id: "mtn_3gb", label: "3GB", basePrice: 12.8, network: "MTN" },
+  { id: "mtn_4gb", label: "4GB", basePrice: 17.0, network: "MTN" },
+  { id: "mtn_5gb", label: "5GB", basePrice: 22.0, network: "MTN" },
+  { id: "mtn_10gb", label: "10GB", basePrice: 41.0, network: "MTN" },
+  { id: "mtn_25gb", label: "25GB", basePrice: 98.0, network: "MTN" },
+  { id: "mtn_50gb", label: "50GB", basePrice: 193.0, network: "MTN" },
+];
+
+function outOfStockSeries(network, prefix) {
+  const sizes = [
+    ["1gb", "1GB", 4.4],
+    ["2gb", "2GB", 8.7],
+    ["3gb", "3GB", 12.8],
+    ["5gb", "5GB", 22.0],
+    ["10gb", "10GB", 41.0],
+  ];
+  return sizes.map(([key, label, price]) => ({
+    id: prefix + "_" + key,
+    label,
+    basePrice: price,
+    network,
+    outOfStock: true,
+  }));
+}
+
+const AIRTELTIGO_BUNDLES = outOfStockSeries("AirtelTigo", "at");
+const TELECEL_BUNDLES = outOfStockSeries("Telecel", "tc");
+
+const ALL_BUNDLES = [...MTN_BUNDLES, ...AIRTELTIGO_BUNDLES, ...TELECEL_BUNDLES];
+
+const BUNDLES_BY_NETWORK = {
+  MTN: MTN_BUNDLES,
+  AirtelTigo: AIRTELTIGO_BUNDLES,
+  Telecel: TELECEL_BUNDLES,
+};
+
+function findBundle(bundleId) {
+  return ALL_BUNDLES.find((b) => b.id === bundleId) || null;
+}
+
+/* ---------------- Social media services ---------------- */
+const INSTAGRAM_SERVICES = [
+  { id: "ig_post_share", name: "Post Share", priceGHS: 2.4717, per: 1000, category: "Instagram" },
+  { id: "ig_post_saves", name: "Post Saves [Instant]", priceGHS: 3.1073, per: 1000, category: "Instagram" },
+  { id: "ig_likes_cheap", name: "Likes | Cheapest", priceGHS: 5.1414, per: 1000, category: "Instagram" },
+  { id: "ig_likes_mid", name: "Likes | Cheap", priceGHS: 8.4744, per: 1000, category: "Instagram" },
+  { id: "ig_likes_nd", name: "Likes | Non Drop", priceGHS: 12.1378, per: 1000, category: "Instagram" },
+  { id: "ig_followers_1", name: "Followers [Cheapest] ~ REFILL 365D", priceGHS: 17.655, per: 1000, category: "Instagram" },
+  { id: "ig_followers_2", name: "Followers [Cheapest] ~ 1k/day ~ REFILL 30D", priceGHS: 28.6894, per: 1000, category: "Instagram" },
+  { id: "ig_followers_3", name: "Followers [Working] [Flag OFF] ~ REFILL 365D", priceGHS: 29.425, per: 1000, category: "Instagram" },
+  { id: "ig_followers_4", name: "Followers [Cheapest] ~ 10k/day ~ REFILL 30D", priceGHS: 43.0341, per: 1000, category: "Instagram" },
+];
+
+const GENERAL_SERVICES = [
+  { id: "gen_live_views", name: "Live Views", priceGHS: 2, per: 1000, category: "General" },
+  { id: "gen_battle_pts", name: "Battle Points", priceGHS: 2, per: 1000, category: "General" },
+  { id: "gen_comment_lk", name: "Comment Likes", priceGHS: 2, per: 100, category: "General" },
+  { id: "gen_add_fav", name: "Add Favorites", priceGHS: 3, per: 1000, category: "General" },
+  { id: "gen_views_cheap", name: "Views (Cheap)", priceGHS: 5, per: 1000, category: "General" },
+  { id: "gen_live_likes", name: "Live Likes", priceGHS: 5, per: 1000, category: "General" },
+  { id: "gen_views_best", name: "Views (Best Speed)", priceGHS: 7, per: 1000, category: "General" },
+  { id: "gen_likes_cheap", name: "Likes (Cheap)", priceGHS: 7, per: 1000, category: "General" },
+  { id: "gen_likes_best", name: "Likes (Best Speed)", priceGHS: 8, per: 1000, category: "General" },
+  { id: "gen_shares", name: "Shares", priceGHS: 8, per: 1000, category: "General" },
+  { id: "gen_story_views", name: "Story Views", priceGHS: 18, per: 1000, category: "General" },
+  { id: "gen_followers", name: "Followers \u2b50", priceGHS: 28, per: 100, category: "General" },
+];
+
+const ALL_SOCIAL_SERVICES = [...INSTAGRAM_SERVICES, ...GENERAL_SERVICES];
+
+function findSocialService(id) {
+  return ALL_SOCIAL_SERVICES.find((s) => s.id === id) || null;
+}
+
+/* ---------------- Utility functions ---------------- */
+function formatGHS(amount) {
+  const n = Number(amount) || 0;
+  return "GHS " + n.toFixed(2);
+}
+
+function generateOrderRef() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let rand = "";
+  for (let i = 0; i < 4; i++) rand += chars[Math.floor(Math.random() * chars.length)];
+  const ts = Date.now().toString().slice(-3);
+  return "ORD-" + rand + ts;
+}
+
+function slugify(storeName) {
+  return (storeName || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+async function generateUniqueSlug(storeName) {
+  const base = slugify(storeName);
+  const existing = await SB.get("resellers", { store_slug: "eq." + base, select: "id" });
+  if (!existing || existing.length === 0) return base;
+  return base + Date.now().toString().slice(-4);
+}
+
+function classNames(...parts) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  const days = Math.floor(hrs / 24);
+  return days + "d ago";
+}
+
+/* ---------------- Supabase REST helper ----------------
+   No SDK — raw fetch() against PostgREST, per spec section 4.
+   --------------------------------------------------------- */
+const SB = {
+  headers(extra) {
+    return Object.assign(
+      {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      extra || {}
+    );
+  },
+  async get(table, filters) {
+    const params = new URLSearchParams(filters || {});
+    const res = await fetch(SUPABASE_URL + "/rest/v1/" + table + "?" + params.toString(), {
+      headers: this.headers(),
+    });
+    if (!res.ok) throw new Error("Supabase GET " + table + " failed: " + res.status);
+    return res.json();
+  },
+  async post(table, body, opts) {
+    const headers = this.headers({ Prefer: (opts && opts.prefer) || "return=representation" });
+    const res = await fetch(SUPABASE_URL + "/rest/v1/" + table, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error("Supabase POST " + table + " failed: " + res.status + " " + errText);
+    }
+    return res.json();
+  },
+  async patch(table, filters, body) {
+    const params = new URLSearchParams(filters || {});
+    const res = await fetch(SUPABASE_URL + "/rest/v1/" + table + "?" + params.toString(), {
+      method: "PATCH",
+      headers: this.headers({ Prefer: "return=representation" }),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error("Supabase PATCH " + table + " failed: " + res.status);
+    return res.json();
+  },
+  async upsert(table, body, onConflict) {
+    const headers = this.headers({ Prefer: "resolution=merge-duplicates,return=representation" });
+    const url = SUPABASE_URL + "/rest/v1/" + table + (onConflict ? "?on_conflict=" + onConflict : "");
+    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error("Supabase UPSERT " + table + " failed: " + res.status);
+    return res.json();
+  },
+  async delete(table, filters) {
+    const params = new URLSearchParams(filters || {});
+    const res = await fetch(SUPABASE_URL + "/rest/v1/" + table + "?" + params.toString(), {
+      method: "DELETE",
+      headers: this.headers({ Prefer: "return=representation" }),
+    });
+    if (!res.ok) throw new Error("Supabase DELETE " + table + " failed: " + res.status);
+    return res.json();
+  },
+};
+
+/* ---------------- Paystack helper ---------------- */
+// Maps metadata keys to the human-readable labels Paystack shows on the
+// transaction receipt email / dashboard when sent via custom_fields.
+const PAYSTACK_FIELD_LABELS = {
+  phone: "Phone Number",
+  network: "Network",
+  bundle: "Bundle",
+  service: "Service",
+  quantity: "Quantity",
+  store: "Reseller Store",
+};
+
+function payWithPaystack({ email, amount, phone, metadata, onSuccess, onClose }) {
+  if (!window.PaystackPop) {
+    alert("Payment system failed to load. Please refresh and try again.");
+    return;
+  }
+  // Paystack only renders extra labeled rows (e.g. "Phone Number", "Bundle")
+  // on the receipt email/dashboard when they're passed as custom_fields,
+  // not as plain metadata keys. Build that array from the metadata object
+  // (and always include phone, since that's what we most need on receipts).
+  const fullMetadata = { ...(metadata || {}), phone };
+  const custom_fields = Object.keys(fullMetadata)
+    .filter((key) => fullMetadata[key] !== undefined && fullMetadata[key] !== null && fullMetadata[key] !== "")
+    .map((key) => ({
+      display_name: PAYSTACK_FIELD_LABELS[key] || key,
+      variable_name: key,
+      value: String(fullMetadata[key]),
+    }));
+
+  const handler = window.PaystackPop.setup({
+    key: PAYSTACK_PUBLIC_KEY,
+    email: email || phone + "@gendata.gh",
+    amount: Math.round(Number(amount) * 100),
+    currency: "GHS",
+    metadata: { ...fullMetadata, custom_fields },
+    callback: function (response) {
+      onSuccess && onSuccess(response);
+    },
+    onClose: function () {
+      onClose && onClose();
+    },
+  });
+  handler.openIframe();
+}
+
+/* ---------------- Session helpers ---------------- */
+const SESSION_KEY = "reseller";
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+function saveSession(reseller) {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(reseller));
+}
+function clearSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
+/* ============================================================
+   Generic UI primitives
+   ============================================================ */
+
+/* ---- Toast ---- */
+const ToastContext = createContext(null);
+
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const push = useCallback((message, type) => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((t) => [...t, { id, message, type: type || "info" }]);
+    setTimeout(() => {
+      setToasts((t) => t.filter((x) => x.id !== id));
+    }, 3500);
+  }, []);
+  return (
+    <ToastContext.Provider value={push}>
+      {children}
+      <div className="toast-wrap">
+        {toasts.map((t) => (
+          <div key={t.id} className={classNames("toast", t.type)}>
+            {t.message}
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+function useToast() {
+  return useContext(ToastContext);
+}
+
+/* ---- Spinner ---- */
+function Spinner({ size }) {
+  return <div className={size === "lg" ? "spinner spinner-lg" : "spinner"} />;
+}
+
+/* ---- StatCard ---- */
+function StatCard({ label, value, color }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value" style={color ? { color } : null}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/* ---- Status badge ---- */
+function StatusBadge({ status }) {
+  const color = STATUS_COLORS[status] || G.muted;
+  return (
+    <span
+      className="badge"
+      style={{ background: color + "1f", color: color, border: "1px solid " + color + "55" }}
+    >
+      {status}
+    </span>
+  );
+}
+
+/* ---- Modal shell ---- */
+function Modal({ onClose, children, maxWidth }) {
+  return (
+    <div
+      className="modal-overlay"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose && onClose();
+      }}
+    >
+      <div className="modal-sheet" style={maxWidth ? { maxWidth } : null}>
+        {onClose && (
+          <button className="modal-close" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ---- Button (style helper per spec section 11, btnStyle(variant)) ---- */
+function Button({ variant, className, children, ...rest }) {
+  const v = variant || "default";
+  return (
+    <button className={classNames("btn", "btn-" + v, className)} {...rest}>
+      {children}
+    </button>
+  );
+}
+
+/* ---- Empty state ---- */
+function EmptyState({ text }) {
+  return <div className="empty-state">{text}</div>;
+}
+
+/* ============================================================
+   AuthModal — Signup + Login tabs
+   ============================================================ */
+function AuthModal({ initialTab, onClose, onAuthed }) {
+  const toast = useToast();
+  const [tab, setTab] = useState(initialTab || "signup");
+  const [loading, setLoading] = useState(false);
+  const [storeName, setStoreName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+
+  const slugPreview = slugify(storeName) || "yourstore";
+
+  async function handleSignup(e) {
+    e.preventDefault();
+    if (!storeName.trim() || !phone.trim() || password.length < 6) {
+      toast("Fill all fields. Password needs 6+ characters.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const existingPhone = await SB.get("resellers", { phone_number: "eq." + phone.trim(), select: "id" });
+      if (existingPhone && existingPhone.length > 0) {
+        toast("That phone number is already registered.", "error");
+        setLoading(false);
+        return;
+      }
+      const slug = await generateUniqueSlug(storeName);
+      const rows = await SB.post("resellers", {
+        store_name: storeName.trim(),
+        phone_number: phone.trim(),
+        password: password,
+        store_slug: slug,
+        wallet_balance: 0,
+        total_sales: 0,
+        total_customers: 0,
+      });
+      const reseller = rows[0];
+      saveSession(reseller);
+      toast("Welcome to GenData GH!", "success");
+      onAuthed(reseller);
+    } catch (err) {
+      toast("Signup failed. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    if (!phone.trim() || !password) {
+      toast("Enter phone number and password.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const rows = await SB.get("resellers", {
+        phone_number: "eq." + phone.trim(),
+        password: "eq." + password,
+      });
+      if (!rows || rows.length === 0) {
+        toast("Invalid phone number or password.", "error");
+        setLoading(false);
+        return;
+      }
+      saveSession(rows[0]);
+      toast("Welcome back, " + rows[0].store_name + "!", "success");
+      onAuthed(rows[0]);
+    } catch (err) {
+      toast("Login failed. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="auth-modal-inner">
+        <h2 className="syne" style={{ margin: "0 0 16px", fontSize: 22 }}>
+          {tab === "signup" ? "Start Selling" : "Welcome Back"}
+        </h2>
+        <div className="auth-tabs">
+          <div
+            className={classNames("auth-tab", tab === "signup" && "active")}
+            onClick={() => setTab("signup")}
+          >
+            Sign Up
+          </div>
+          <div
+            className={classNames("auth-tab", tab === "login" && "active")}
+            onClick={() => setTab("login")}
+          >
+            Login
+          </div>
+        </div>
+
+        {tab === "signup" ? (
+          <form onSubmit={handleSignup} className="flex-col gap-12">
+            <div>
+              <label className="label">Store Name</label>
+              <input
+                className="surface-input"
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                placeholder="e.g. Kofi's Data Hub"
+              />
+              <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                Your store link: gendata.gh/store/<span style={{ color: G.accent }}>{slugPreview}</span>
+              </div>
+            </div>
+            <div>
+              <label className="label">Phone Number</label>
+              <input
+                className="surface-input"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="024XXXXXXX"
+              />
+            </div>
+            <div>
+              <label className="label">Password</label>
+              <input
+                className="surface-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min. 6 characters"
+              />
+            </div>
+            <Button variant="primary" className="btn-block" disabled={loading} type="submit">
+              {loading ? <Spinner /> : "Create My Store"}
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={handleLogin} className="flex-col gap-12">
+            <div>
+              <label className="label">Phone Number</label>
+              <input
+                className="surface-input"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="024XXXXXXX"
+              />
+            </div>
+            <div>
+              <label className="label">Password</label>
+              <input
+                className="surface-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your password"
+              />
+            </div>
+            <Button variant="primary" className="btn-block" disabled={loading} type="submit">
+              {loading ? <Spinner /> : "Log In"}
+            </Button>
+          </form>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   AdminLoginModal — secret 7-tap or hidden button access
+   ============================================================ */
+function AdminLoginModal({ onClose, onAdminAuthed }) {
+  const toast = useToast();
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      if (phone.trim() === ADMIN_PHONE && password === ADMIN_PASSWORD) {
+        sessionStorage.setItem("admin_auth", "true");
+        toast("Admin access granted.", "success");
+        onAdminAuthed();
+      } else {
+        toast("Invalid admin credentials.", "error");
+      }
+      setLoading(false);
+    }, 350);
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 className="syne" style={{ margin: "0 0 4px", fontSize: 20 }}>
+        Admin Access
+      </h2>
+      <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
+        Restricted area — DataResell Pro staff only.
+      </p>
+      <form onSubmit={handleSubmit} className="flex-col gap-12">
+        <input
+          className="surface-input"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="Admin phone"
+        />
+        <input
+          className="surface-input"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Admin password"
+        />
+        <Button variant="primary" className="btn-block" disabled={loading} type="submit">
+          {loading ? <Spinner /> : "Enter Admin Panel"}
+        </Button>
+      </form>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   AndroidInstallPopup
+   ============================================================ */
+function AndroidInstallPopup() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const dismissed = localStorage.getItem("gendata_app_popup_dismissed");
+    if (dismissed === "true") return;
+    const t = setTimeout(() => setShow(true), 1800);
+    return () => clearTimeout(t);
+  }, []);
+  if (!show) return null;
+  function dontShowAgain() {
+    localStorage.setItem("gendata_app_popup_dismissed", "true");
+    setShow(false);
+  }
+  return (
+    <div className="android-popup">
+      <div style={{ fontSize: 30 }}>📱</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 14.5 }}>Get the GenData GH App</div>
+        <div className="muted" style={{ fontSize: 12.5 }}>Faster buying, order alerts, Android only.</div>
+      </div>
+      <div className="flex-col gap-8" style={{ alignItems: "flex-end" }}>
+        <a href={APK_URL} className="btn btn-primary btn-sm">
+          Download
+        </a>
+        <span
+          className="muted"
+          style={{ fontSize: 11.5, cursor: "pointer" }}
+          onClick={dontShowAgain}
+        >
+          Don't show again
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Direct Buy Modal (public, from Landing) — Paystack inline
+   ============================================================ */
+function DirectBuyModal({ onClose, onSuccess }) {
+  const toast = useToast();
+  const [network, setNetwork] = useState("MTN");
+  const [bundleId, setBundleId] = useState(MTN_BUNDLES[0].id);
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [paying, setPaying] = useState(false);
+
+  const bundles = BUNDLES_BY_NETWORK[network];
+  const bundle = findBundle(bundleId);
+
+  useEffect(() => {
+    const first = BUNDLES_BY_NETWORK[network].find((b) => !b.outOfStock) || BUNDLES_BY_NETWORK[network][0];
+    setBundleId(first.id);
+  }, [network]);
+
+  function handlePay() {
+    if (!bundle) return;
+    if (bundle.outOfStock) {
+      toast(network + " bundles are currently out of stock.", "error");
+      return;
+    }
+    if (!/^0\d{9}$/.test(customerPhone.trim())) {
+      toast("Enter a valid 10-digit phone number.", "error");
+      return;
+    }
+    setPaying(true);
+    payWithPaystack({
+      email,
+      phone: customerPhone,
+      amount: bundle.basePrice,
+      metadata: { network, bundle: bundle.label },
+      onSuccess: async (resp) => {
+        try {
+          const orderRef = generateOrderRef();
+          const rows = await SB.post("transactions", {
+            reseller_id: null,
+            network: network,
+            bundle: bundle.label + " - " + formatGHS(bundle.basePrice),
+            amount: bundle.basePrice,
+            customer_phone: customerPhone.trim(),
+            customer_email: email || null,
+            status: "pending",
+            admin_status: "Pending",
+            type: "data_purchase",
+            payment_ref: resp.reference,
+            order_ref: orderRef,
+          });
+          setPaying(false);
+          onSuccess(rows[0]);
+        } catch (err) {
+          setPaying(false);
+          toast("Payment succeeded but we couldn't log your order. Contact support with reference " + resp.reference, "error");
+        }
+      },
+      onClose: () => setPaying(false),
+    });
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 className="syne" style={{ margin: "0 0 16px", fontSize: 20 }}>
+        Buy Data Bundle
+      </h2>
+      <div className="flex-col gap-12">
+        <div>
+          <label className="label">Network</label>
+          <div className="flex gap-8">
+            {Object.keys(BUNDLES_BY_NETWORK).map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={classNames("chip", network === n && "active")}
+                style={network === n ? { borderColor: G.accent, color: G.accent } : null}
+                onClick={() => setNetwork(n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="label">Bundle Size</label>
+          <select className="surface-input" value={bundleId} onChange={(e) => setBundleId(e.target.value)}>
+            {bundles.map((b) => (
+              <option key={b.id} value={b.id} disabled={b.outOfStock}>
+                {b.label} — {formatGHS(b.basePrice)} {b.outOfStock ? "(Out of stock)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">Recipient Phone Number</label>
+          <input
+            className="surface-input"
+            value={customerPhone}
+            onChange={(e) => setCustomerPhone(e.target.value)}
+            placeholder="024XXXXXXX"
+          />
+        </div>
+        <div>
+          <label className="label">Email (optional, for receipt)</label>
+          <input
+            className="surface-input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </div>
+        <button className="paystack-btn" disabled={paying} onClick={handlePay}>
+          {paying ? <Spinner /> : "Pay " + formatGHS(bundle ? bundle.basePrice : 0) + " with Paystack"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   Buy Success Modal
+   ============================================================ */
+function BuySuccessModal({ order, onClose, onTrack }) {
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 44 }}>✅</div>
+        <h2 className="syne" style={{ margin: "10px 0 4px", fontSize: 20 }}>
+          Order Placed!
+        </h2>
+        <p className="muted" style={{ fontSize: 13.5, marginBottom: 16 }}>
+          We'll deliver your data shortly. Save your order ID to track progress.
+        </p>
+        <div className="order-id-box">{order.order_ref}</div>
+        <div className="flex-col gap-8" style={{ marginTop: 18 }}>
+          <Button variant="primary" className="btn-block" onClick={onTrack}>
+            Track This Order
+          </Button>
+          <Button variant="ghost" className="btn-block" onClick={onClose}>
+            Done
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   Landing — public homepage
+   ============================================================ */
+function Landing({ onGoStore }) {
+  const [authTab, setAuthTab] = useState(null);
+  const [adminLogin, setAdminLogin] = useState(false);
+  const [buyModal, setBuyModal] = useState(false);
+  const [successOrder, setSuccessOrder] = useState(null);
+  const [trackTarget, setTrackTarget] = useState(null);
+  const tapCount = useRef(0);
+  const tapTimer = useRef(null);
+
+  function handleLogoTap() {
+    tapCount.current += 1;
+    if (tapTimer.current) clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => {
+      tapCount.current = 0;
+    }, 1500);
+    if (tapCount.current >= 7) {
+      tapCount.current = 0;
+      setAdminLogin(true);
+    }
+  }
+
+  if (trackTarget) {
+    return <StandaloneTrackOrder onBack={() => setTrackTarget(null)} />;
+  }
+
+  return (
+    <div>
+      <nav className="nav">
+        <div className="nav-inner">
+          <div className="nav-logo syne" onClick={handleLogoTap} style={{ cursor: "default" }}>
+            DataResell <span style={{ color: G.accent }}>Pro</span>
+          </div>
+          <div className="nav-actions">
+            <Button variant="ghost" className="btn-sm" onClick={() => setAuthTab("login")}>
+              Login
+            </Button>
+            <Button variant="primary" className="btn-sm" onClick={() => setAuthTab("signup")}>
+              Get Started
+            </Button>
+          </div>
+        </div>
+      </nav>
+
+      <section className="hero container">
+        <div className="hero-badge fade-up fa1">⚡ Trusted by resellers across Ghana</div>
+        <h1 className="syne fade-up fa2">
+          Buy &amp; Resell Data Bundles <span className="grad">The Smart Way</span>
+        </h1>
+        <p className="sub fade-up fa3">
+          Get MTN, AirtelTigo &amp; Telecel data at the best rates. Buy for yourself, or start your
+          own data reselling business with a free personal store link.
+        </p>
+        <div className="hero-btns fade-up fa4">
+          <Button variant="primary" onClick={() => setBuyModal(true)}>
+            Buy Data Now
+          </Button>
+          <Button variant="ghost" onClick={() => setAuthTab("signup")}>
+            Become a Reseller
+          </Button>
+        </div>
+
+        <div className="live-stats-grid fade-up fa5">
+          <StatCard label="Active Resellers" value="2,400+" color={G.accent} />
+          <StatCard label="Orders Delivered" value="58,000+" color={G.green} />
+          <StatCard label="Avg. Delivery Time" value="< 10 min" color={G.gold} />
+          <StatCard label="Networks Supported" value="3" color={G.accent2} />
+        </div>
+      </section>
+
+      <section className="container" style={{ padding: "40px 0" }}>
+        <h2 className="syne" style={{ textAlign: "center", fontSize: 28, marginBottom: 22 }}>
+          MTN Data Prices
+        </h2>
+        <div className="mtn-prices-grid">
+          {MTN_BUNDLES.map((b) => (
+            <div
+              key={b.id}
+              className="buy-highlight-inner"
+              onClick={() => setBuyModal(true)}
+            >
+              <div style={{ fontWeight: 800, fontSize: 19 }}>{b.label}</div>
+              <div style={{ color: G.accent, fontWeight: 700, marginTop: 4 }}>{formatGHS(b.basePrice)}</div>
+              <span className="buy-view-btn">Buy Now →</span>
+            </div>
+          ))}
+        </div>
+        <p className="muted" style={{ textAlign: "center", marginTop: 14, fontSize: 13 }}>
+          AirtelTigo &amp; Telecel bundles are temporarily out of stock.
+        </p>
+      </section>
+
+      <section className="container" style={{ padding: "30px 0 50px" }}>
+        <h2 className="syne" style={{ textAlign: "center", fontSize: 28, marginBottom: 24 }}>
+          How It Works
+        </h2>
+        <div className="benefits-grid">
+          {[
+            ["1", "Pick Your Bundle", "Choose your network and data size, MTN, AirtelTigo, or Telecel."],
+            ["2", "Pay Securely", "Checkout instantly with Paystack — cards or mobile money."],
+            ["3", "Get Delivered", "Your data lands on the recipient's phone, usually within minutes."],
+          ].map(([n, title, body]) => (
+            <div className="card" key={n}>
+              <div className="syne" style={{ color: G.accent, fontWeight: 800, fontSize: 22 }}>
+                {n}
+              </div>
+              <div style={{ fontWeight: 700, marginTop: 8, marginBottom: 6 }}>{title}</div>
+              <div className="muted" style={{ fontSize: 13.5, lineHeight: 1.5 }}>
+                {body}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="container" style={{ padding: "10px 0 60px", textAlign: "center" }}>
+        <div className="card" style={{ padding: 36 }}>
+          <h2 className="syne" style={{ fontSize: 26, marginBottom: 10 }}>
+            Want to earn from data sales?
+          </h2>
+          <p className="muted" style={{ marginBottom: 20 }}>
+            Sign up free, get your own store link, set your own prices, and keep the profit on
+            every sale.
+          </p>
+          <div className="cta-btns">
+            <Button variant="primary" onClick={() => setAuthTab("signup")}>
+              Create My Free Store
+            </Button>
+            <a
+              className="btn btn-ghost"
+              href={"https://wa.me/" + WHATSAPP_NUMBER}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Chat on WhatsApp
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <footer className="site-footer">
+        <div>© {new Date().getFullYear()} DataResell Pro · GenData GH</div>
+        <div style={{ marginTop: 6 }}>
+          Support:{" "}
+          <a href={"https://wa.me/" + WHATSAPP_NUMBER} target="_blank" rel="noreferrer">
+            +233 55 787 7493
+          </a>
+        </div>
+      </footer>
+
+      {/* hidden admin-access button, bottom-right corner */}
+      <button
+        onClick={() => setAdminLogin(true)}
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          bottom: 0,
+          right: 0,
+          width: 26,
+          height: 26,
+          opacity: 0,
+          border: "none",
+          background: "transparent",
+          zIndex: 10,
+        }}
+      />
+
+      <AndroidInstallPopup />
+
+      {authTab && (
+        <AuthModal
+          initialTab={authTab}
+          onClose={() => setAuthTab(null)}
+          onAuthed={(reseller) => onGoStore(reseller)}
+        />
+      )}
+      {adminLogin && (
+        <AdminLoginModal onClose={() => setAdminLogin(false)} onAdminAuthed={() => onGoStore(null, true)} />
+      )}
+      {buyModal && (
+        <DirectBuyModal
+          onClose={() => setBuyModal(false)}
+          onSuccess={(order) => {
+            setBuyModal(false);
+            setSuccessOrder(order);
+          }}
+        />
+      )}
+      {successOrder && (
+        <BuySuccessModal
+          order={successOrder}
+          onClose={() => setSuccessOrder(null)}
+          onTrack={() => {
+            setSuccessOrder(null);
+            setTrackTarget({ orderRef: successOrder.order_ref });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* Standalone order tracker reachable from Landing's success modal,
+   queries across all resellers + direct platform buys (reseller_id null) */
+function StandaloneTrackOrder({ onBack }) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [searched, setSearched] = useState(false);
+
+  async function handleSearch(e) {
+    e.preventDefault();
+    if (!query.trim()) return;
+    setLoading(true);
+    setSearched(true);
+    try {
+      const byRef = await SB.get("transactions", { order_ref: "eq." + query.trim().toUpperCase() });
+      if (byRef && byRef.length > 0) {
+        setResult(byRef[0]);
+      } else {
+        const byPhone = await SB.get("transactions", {
+          customer_phone: "eq." + query.trim(),
+          order: "created_at.desc",
+          limit: "1",
+        });
+        setResult(byPhone && byPhone[0] ? byPhone[0] : null);
+      }
+    } catch (err) {
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="container" style={{ paddingTop: 30, maxWidth: 540 }}>
+      <Button variant="ghost" className="btn-sm" onClick={onBack}>
+        ← Back
+      </Button>
+      <h2 className="syne" style={{ margin: "18px 0 16px" }}>
+        Track Your Order
+      </h2>
+      <form onSubmit={handleSearch} className="flex gap-8">
+        <input
+          className="surface-input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Order ID or phone number"
+        />
+        <Button variant="primary" type="submit" disabled={loading}>
+          {loading ? <Spinner /> : "Search"}
+        </Button>
+      </form>
+      <div style={{ marginTop: 20 }}>
+        {searched && !loading && !result && <EmptyState text="No order found for that ID or phone number." />}
+        {result && <OrderTrackCard order={result} />}
+      </div>
+    </div>
+  );
+}
+
+/* Shared tracking visual used in both standalone + StoreFront tracker */
+const TRACK_STEPS = ["Pending", "Processing", "Completed"];
+function OrderTrackCard({ order }) {
+  const status = order.admin_status || "Pending";
+  const failedOrRefunded = status === "Failed" || status === "Refunded";
+  const activeIndex = TRACK_STEPS.indexOf(status);
+
+  return (
+    <div className="card">
+      <div className="flex justify-between items-center" style={{ marginBottom: 14 }}>
+        <div>
+          <div className="muted" style={{ fontSize: 12 }}>Order ID</div>
+          <div style={{ fontWeight: 800, fontSize: 17 }}>{order.order_ref}</div>
+        </div>
+        <StatusBadge status={status} />
+      </div>
+      <div className="divider" />
+      <div className="flex justify-between" style={{ fontSize: 13.5, marginBottom: 14 }}>
+        <span className="muted">{order.network} · {order.bundle}</span>
+        <span style={{ fontWeight: 700 }}>{formatGHS(order.amount)}</span>
+      </div>
+
+      {failedOrRefunded ? (
+        <div className="track-step done">
+          <div className="track-step-dot" style={{ background: STATUS_COLORS[status], borderColor: STATUS_COLORS[status] }} />
+          <div>
+            <div style={{ fontWeight: 700 }}>{status}</div>
+            <div className="muted" style={{ fontSize: 12.5 }}>
+              {status === "Failed" ? "This order could not be completed." : "This order was refunded."}
+            </div>
+          </div>
+        </div>
+      ) : (
+        TRACK_STEPS.map((step, i) => (
+          <div
+            key={step}
+            className={classNames("track-step", i < activeIndex && "done", i === activeIndex && "active")}
+          >
+            <div className="track-step-dot" />
+            <div>
+              <div style={{ fontWeight: 700 }}>{step}</div>
+              {i === activeIndex && (
+                <div className="muted" style={{ fontSize: 12.5 }}>
+                  <span className="track-live-dot" />
+                  In progress
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   StoreFront — customer-facing reseller store at /store/:slug
+   ============================================================ */
+function StoreFront({ slug }) {
+  const toast = useToast();
+  const [reseller, setReseller] = useState(undefined); // undefined=loading, null=not found
+  const [prices, setPrices] = useState({});
+  const [tab, setTab] = useState("bundles");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await SB.get("resellers", { store_slug: "eq." + slug });
+        if (!rows || rows.length === 0) {
+          setReseller(null);
+          return;
+        }
+        const r = rows[0];
+        setReseller(r);
+        const priceRows = await SB.get("reseller_prices", { reseller_id: "eq." + r.id });
+        const map = {};
+        (priceRows || []).forEach((p) => (map[p.bundle_id] = p.price));
+        setPrices(map);
+      } catch (err) {
+        setReseller(null);
+      }
+    })();
+  }, [slug]);
+
+  if (reseller === undefined) {
+    return (
+      <div className="sf-body flex items-center justify-center" style={{ minHeight: "100vh" }}>
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+  if (reseller === null) {
+    return (
+      <div className="sf-body flex-col items-center justify-center" style={{ minHeight: "100vh", textAlign: "center", padding: 30 }}>
+        <div style={{ fontSize: 40 }}>🔍</div>
+        <h2 className="syne">Store Not Found</h2>
+        <p className="muted">This store link doesn't exist or may have been removed.</p>
+        <a href="/" className="btn btn-primary" style={{ marginTop: 14 }}>
+          Go to DataResell Pro
+        </a>
+      </div>
+    );
+  }
+
+  function priceFor(bundleId, basePrice) {
+    return prices[bundleId] != null ? Number(prices[bundleId]) : basePrice;
+  }
+
+  return (
+    <div className="sf-body">
+      <div className="sf-header">
+        <div className="syne" style={{ fontSize: 22, fontWeight: 800 }}>
+          {reseller.store_name}
+        </div>
+        <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+          
+        </div>
+      </div>
+      <div className="sf-tabs">
+        <div className={classNames("sf-tab", tab === "bundles" && "active")} onClick={() => setTab("bundles")}>
+          Data Bundles
+        </div>
+        <div className={classNames("sf-tab", tab === "social" && "active")} onClick={() => setTab("social")}>
+          Social Media
+        </div>
+        <div className={classNames("sf-tab", tab === "track" && "active")} onClick={() => setTab("track")}>
+          Track Order
+        </div>
+      </div>
+      <div className="container" style={{ paddingTop: 22, paddingBottom: 50, maxWidth: 560 }}>
+        {tab === "bundles" && <SFBundlesTab reseller={reseller} priceFor={priceFor} toast={toast} />}
+        {tab === "social" && <SFSocialTab reseller={reseller} toast={toast} />}
+        {tab === "track" && <SFTrackTab reseller={reseller} />}
+      </div>
+    </div>
+  );
+}
+
+function SFBundlesTab({ reseller, priceFor, toast }) {
+  const [network, setNetwork] = useState("MTN");
+  const [bundleId, setBundleId] = useState(MTN_BUNDLES[0].id);
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [success, setSuccess] = useState(null);
+
+  const bundles = BUNDLES_BY_NETWORK[network];
+  const bundle = findBundle(bundleId);
+  const price = bundle ? priceFor(bundle.id, bundle.basePrice) : 0;
+
+  useEffect(() => {
+    const first = BUNDLES_BY_NETWORK[network].find((b) => !b.outOfStock) || BUNDLES_BY_NETWORK[network][0];
+    setBundleId(first.id);
+  }, [network]);
+
+  function handlePay() {
+    if (!bundle) return;
+    if (bundle.outOfStock) {
+      toast(network + " is currently out of stock.", "error");
+      return;
+    }
+    if (!/^0\d{9}$/.test(customerPhone.trim())) {
+      toast("Enter a valid 10-digit phone number.", "error");
+      return;
+    }
+    setPaying(true);
+    payWithPaystack({
+      email,
+      phone: customerPhone,
+      amount: price,
+      metadata: { network, bundle: bundle.label, store: reseller.store_slug },
+      onSuccess: async (resp) => {
+        try {
+          const orderRef = generateOrderRef();
+          const rows = await SB.post("transactions", {
+            reseller_id: reseller.id,
+            network,
+            bundle: bundle.label + " - " + formatGHS(price),
+            amount: price,
+            customer_phone: customerPhone.trim(),
+            customer_email: email || null,
+            status: "pending",
+            admin_status: "Pending",
+            type: "data_purchase",
+            payment_ref: resp.reference,
+            order_ref: orderRef,
+          });
+          await SB.patch("resellers", { id: "eq." + reseller.id }, {
+            total_sales: Number(reseller.total_sales || 0) + price,
+            total_customers: Number(reseller.total_customers || 0) + 1,
+          });
+          setPaying(false);
+          setSuccess(rows[0]);
+        } catch (err) {
+          setPaying(false);
+          toast("Payment went through, but logging failed. Save reference " + resp.reference, "error");
+        }
+      },
+      onClose: () => setPaying(false),
+    });
+  }
+
+  if (success) {
+    return (
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 44 }}>✅</div>
+        <h3 className="syne">Order Placed!</h3>
+        <p className="muted" style={{ fontSize: 13.5 }}>Save your order ID to track delivery.</p>
+        <div className="order-id-box">{success.order_ref}</div>
+        <Button variant="ghost" className="btn-block" style={{ marginTop: 16 }} onClick={() => setSuccess(null)}>
+          Buy Another Bundle
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-col gap-16">
+      <div className="flex gap-8">
+        {Object.keys(BUNDLES_BY_NETWORK).map((n) => (
+          <button
+            key={n}
+            className="chip"
+            style={network === n ? { borderColor: G.accent, color: G.accent } : null}
+            onClick={() => setNetwork(n)}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      <div className="mtn-prices-grid">
+        {bundles.map((b) => {
+          const p = priceFor(b.id, b.basePrice);
+          return (
+            <div
+              key={b.id}
+              className={classNames("sf-bundle-card", bundleId === b.id && "selected", b.outOfStock && "oos")}
+              onClick={() => !b.outOfStock && setBundleId(b.id)}
+            >
+              {b.outOfStock && <span className="oos-tag">OUT</span>}
+              <div className="size">{b.label}</div>
+              <div className="price">{formatGHS(p)}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div>
+        <label className="label">Recipient Phone Number</label>
+        <input className="surface-input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="024XXXXXXX" />
+      </div>
+      <div>
+        <label className="label">Email (optional)</label>
+        <input className="surface-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+      </div>
+      <button className="paystack-btn" disabled={paying} onClick={handlePay}>
+        {paying ? <Spinner /> : "Pay " + formatGHS(price) + " with Paystack"}
+      </button>
+    </div>
+  );
+}
+
+function SFSocialTab({ reseller, toast }) {
+  const [serviceId, setServiceId] = useState(ALL_SOCIAL_SERVICES[0].id);
+  const [quantity, setQuantity] = useState(1000);
+  const [target, setTarget] = useState("");
+  const [email, setEmail] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [success, setSuccess] = useState(null);
+
+  const service = findSocialService(serviceId);
+  const amount = service ? Math.round((service.priceGHS * (quantity / service.per)) * 100) / 100 : 0;
+
+  function handlePay() {
+    if (!service) return;
+    if (!target.trim()) {
+      toast("Enter the profile link or username to deliver to.", "error");
+      return;
+    }
+    if (!quantity || quantity <= 0) {
+      toast("Enter a valid quantity.", "error");
+      return;
+    }
+    setPaying(true);
+    payWithPaystack({
+      email,
+      phone: target,
+      amount,
+      metadata: { service: service.name, quantity, store: reseller.store_slug },
+      onSuccess: async (resp) => {
+        try {
+          const orderRef = generateOrderRef();
+          const rows = await SB.post("transactions", {
+            reseller_id: reseller.id,
+            network: "Social",
+            bundle: service.name + " x " + quantity,
+            amount,
+            customer_phone: target.trim(),
+            customer_email: email || null,
+            status: "pending",
+            admin_status: "Pending",
+            type: "social_order",
+            payment_ref: resp.reference,
+            order_ref: orderRef,
+          });
+          await SB.patch("resellers", { id: "eq." + reseller.id }, {
+            total_sales: Number(reseller.total_sales || 0) + amount,
+            total_customers: Number(reseller.total_customers || 0) + 1,
+          });
+          setPaying(false);
+          setSuccess(rows[0]);
+        } catch (err) {
+          setPaying(false);
+          toast("Payment succeeded but logging failed. Reference " + resp.reference, "error");
+        }
+      },
+      onClose: () => setPaying(false),
+    });
+  }
+
+  if (success) {
+    return (
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 44 }}>✅</div>
+        <h3 className="syne">Order Placed!</h3>
+        <div className="order-id-box">{success.order_ref}</div>
+        <Button variant="ghost" className="btn-block" style={{ marginTop: 16 }} onClick={() => setSuccess(null)}>
+          Place Another Order
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-col gap-16">
+      <div>
+        <label className="label">Service</label>
+        <select className="surface-input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+          <optgroup label="Instagram">
+            {INSTAGRAM_SERVICES.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} — {formatGHS(s.priceGHS)}/{s.per}</option>
+            ))}
+          </optgroup>
+          <optgroup label="General / TikTok">
+            {GENERAL_SERVICES.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} — {formatGHS(s.priceGHS)}/{s.per}</option>
+            ))}
+          </optgroup>
+        </select>
+      </div>
+      <div>
+        <label className="label">Quantity</label>
+        <input
+          type="number"
+          className="surface-input"
+          value={quantity}
+          min={service ? service.per : 1}
+          step={service ? service.per : 1}
+          onChange={(e) => setQuantity(Number(e.target.value))}
+        />
+      </div>
+      <div>
+        <label className="label">Profile Link / Username</label>
+        <input className="surface-input" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="https://instagram.com/yourpage" />
+      </div>
+      <div>
+        <label className="label">Email (optional)</label>
+        <input className="surface-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+      </div>
+      <div className="card" style={{ display: "flex", justifyContent: "space-between" }}>
+        <span className="muted">Total</span>
+        <span style={{ fontWeight: 800, color: G.accent }}>{formatGHS(amount)}</span>
+      </div>
+      <button className="paystack-btn" disabled={paying} onClick={handlePay}>
+        {paying ? <Spinner /> : "Pay " + formatGHS(amount) + " with Paystack"}
+      </button>
+    </div>
+  );
+}
+
+function SFTrackTab({ reseller }) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [searched, setSearched] = useState(false);
+
+  async function handleSearch(e) {
+    e.preventDefault();
+    if (!query.trim()) return;
+    setLoading(true);
+    setSearched(true);
+    try {
+      const byRef = await SB.get("transactions", {
+        order_ref: "eq." + query.trim().toUpperCase(),
+        reseller_id: "eq." + reseller.id,
+      });
+      if (byRef && byRef.length > 0) {
+        setResult(byRef[0]);
+      } else {
+        const byPhone = await SB.get("transactions", {
+          customer_phone: "eq." + query.trim(),
+          reseller_id: "eq." + reseller.id,
+          order: "created_at.desc",
+          limit: "1",
+        });
+        setResult(byPhone && byPhone[0] ? byPhone[0] : null);
+      }
+    } catch (err) {
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex-col gap-16">
+      <form onSubmit={handleSearch} className="flex gap-8">
+        <input className="surface-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Order ID or phone number" />
+        <Button variant="primary" type="submit" disabled={loading}>
+          {loading ? <Spinner /> : "Search"}
+        </Button>
+      </form>
+      {searched && !loading && !result && <EmptyState text="No matching order found at this store." />}
+      {result && <OrderTrackCard order={result} />}
+    </div>
+  );
+}
+
+/* ============================================================
+   Dashboard — reseller dashboard shell
+   ============================================================ */
+const DASH_TABS = [
+  { id: "overview", label: "Overview", icon: "🏠" },
+  { id: "notifications", label: "Inbox", icon: "🔔" },
+  { id: "buy", label: "Buy Data", icon: "📶" },
+  { id: "social", label: "Social Media", icon: "📈" },
+  { id: "transactions", label: "Transactions", icon: "🧾" },
+  { id: "earnings", label: "Earnings", icon: "💰" },
+  { id: "withdraw", label: "Withdraw", icon: "🏦" },
+  { id: "prices", label: "My Prices", icon: "🏷️" },
+  { id: "requests", label: "Requests", icon: "💬" },
+  { id: "store", label: "My Store", icon: "🔗" },
+  { id: "orders", label: "My Orders", icon: "📦" },
+];
+const DASH_MOBILE_TABS = ["overview", "transactions", "buy", "withdraw", "store"];
+
+function Dashboard({ reseller, setReseller, onLogout }) {
+  const [tab, setTab] = useState("overview");
+
+  function refreshReseller() {
+    SB.get("resellers", { id: "eq." + reseller.id }).then((rows) => {
+      if (rows && rows[0]) {
+        setReseller(rows[0]);
+        saveSession(rows[0]);
+      }
+    });
+  }
+
+  return (
+    <div className="app-shell">
+      <div className="sidebar-desktop">
+        <div className="syne" style={{ fontWeight: 800, fontSize: 17, padding: "6px 12px 18px" }}>
+          GenData <span style={{ color: G.accent }}>GH</span>
+        </div>
+        {DASH_TABS.map((t) => (
+          <div
+            key={t.id}
+            className={classNames("sidebar-link", tab === t.id && "active")}
+            onClick={() => setTab(t.id)}
+          >
+            <span>{t.icon}</span>
+            <span>{t.label}</span>
+          </div>
+        ))}
+        <div className="divider" />
+        <div className="sidebar-link" onClick={onLogout} style={{ color: G.red }}>
+          <span>🚪</span>
+          <span>Log Out</span>
+        </div>
+      </div>
+
+      <div className="main-content">
+        <div className="flex justify-between items-center" style={{ marginBottom: 20 }}>
+          <div>
+            <div className="muted" style={{ fontSize: 12.5 }}>Welcome back,</div>
+            <div className="syne" style={{ fontWeight: 800, fontSize: 19 }}>{reseller.store_name}</div>
+          </div>
+          <div className="card" style={{ padding: "8px 14px", textAlign: "right" }}>
+            <div className="muted" style={{ fontSize: 11 }}>Wallet</div>
+            <div style={{ fontWeight: 800, color: G.green }}>{formatGHS(reseller.wallet_balance)}</div>
+          </div>
+        </div>
+
+        {tab === "overview" && <DashOverviewTab reseller={reseller} setTab={setTab} />}
+        {tab === "notifications" && <ResellerNotificationsTab reseller={reseller} />}
+        {tab === "buy" && <DashBuyDataTab reseller={reseller} refreshReseller={refreshReseller} />}
+        {tab === "social" && <DashSocialTab reseller={reseller} refreshReseller={refreshReseller} />}
+        {tab === "transactions" && <DashTransactionsTab reseller={reseller} />}
+        {tab === "earnings" && <DashEarningsTab reseller={reseller} />}
+        {tab === "withdraw" && <DashWithdrawTab reseller={reseller} />}
+        {tab === "prices" && <DashMyPricesTab reseller={reseller} />}
+        {tab === "requests" && <ResellerRequestsTab reseller={reseller} />}
+        {tab === "store" && <DashMyStoreTab reseller={reseller} />}
+        {tab === "orders" && <DashMyOrdersTab reseller={reseller} />}
+      </div>
+
+      <div className="mobile-nav">
+        {DASH_MOBILE_TABS.map((id) => {
+          const t = DASH_TABS.find((x) => x.id === id);
+          return (
+            <div key={id} className={classNames("mobile-nav-item", tab === id && "active")} onClick={() => setTab(id)}>
+              <span style={{ fontSize: 17 }}>{t.icon}</span>
+              <span>{t.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: Overview ---------------- */
+function DashOverviewTab({ reseller, setTab }) {
+  const toast = useToast();
+  const [recent, setRecent] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [profit, setProfit] = useState(0);
+  const storeLink = window.location.origin + "/store/" + reseller.store_slug;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await SB.get("transactions", {
+          reseller_id: "eq." + reseller.id,
+          order: "created_at.desc",
+          limit: "6",
+        });
+        setRecent(rows || []);
+        const completed = await SB.get("transactions", {
+          reseller_id: "eq." + reseller.id,
+          admin_status: "eq.Completed",
+        });
+        const totalProfit = (completed || []).reduce((sum, t) => {
+          if (t.profit != null && t.profit !== "") return sum + Number(t.profit);
+          const base = findBundle(matchBundleId(t.bundle));
+          const baseCost = base ? base.basePrice : 0;
+          return sum + (Number(t.amount) - baseCost);
+        }, 0);
+        setProfit(totalProfit);
+      } catch (err) {
+        toast("Couldn't load overview data.", "error");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [reseller.id]);
+
+  function copyLink() {
+    navigator.clipboard.writeText(storeLink);
+    toast("Store link copied!", "success");
+  }
+
+  return (
+    <div className="flex-col gap-16">
+      <div className="live-stats-grid">
+        <StatCard label="Wallet Balance" value={formatGHS(reseller.wallet_balance)} color={G.green} />
+        <StatCard label="Total Sales" value={formatGHS(reseller.total_sales)} color={G.accent} />
+        <StatCard label="Profit Earned" value={formatGHS(profit)} color={G.gold} />
+        <StatCard label="Customers Served" value={reseller.total_customers || 0} color={G.accent2} />
+      </div>
+
+      <div className="card">
+        <div className="flex justify-between items-center" style={{ marginBottom: 10 }}>
+          <div style={{ fontWeight: 700 }}>Your Store Link</div>
+          <Button variant="ghost" className="btn-sm" onClick={copyLink}>
+            Copy
+          </Button>
+        </div>
+        <div className="surface-input" style={{ color: G.accent, overflowX: "auto", whiteSpace: "nowrap" }}>
+          {storeLink}
+        </div>
+      </div>
+
+      <div className="flex gap-12 flex-wrap">
+        <div className="chip" onClick={() => setTab("buy")}>📶 Buy Data</div>
+        <div className="chip" onClick={() => setTab("prices")}>🏷️ Set Prices</div>
+        <div className="chip" onClick={() => setTab("withdraw")}>🏦 Withdraw</div>
+        <div className="chip" onClick={() => setTab("store")}>🔗 Share Store</div>
+      </div>
+
+      <div className="card">
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Recent Transactions</div>
+        {loading ? (
+          <Spinner />
+        ) : recent.length === 0 ? (
+          <EmptyState text="No transactions yet." />
+        ) : (
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead>
+                <tr><th>Network</th><th>Bundle</th><th>Amount</th><th>Status</th><th>Date</th></tr>
+              </thead>
+              <tbody>
+                {recent.map((t) => (
+                  <tr key={t.id}>
+                    <td>{t.network}</td>
+                    <td>{t.bundle}</td>
+                    <td>{formatGHS(t.amount)}</td>
+                    <td><StatusBadge status={t.admin_status} /></td>
+                    <td className="muted">{timeAgo(t.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* Helper: reverse-match a bundle from the free-text "bundle" column,
+   e.g. "1GB - GHS4.40" -> mtn_1gb (best-effort by label) */
+function matchBundleId(bundleText) {
+  if (!bundleText) return null;
+  const found = ALL_BUNDLES.find((b) => bundleText.indexOf(b.label) === 0 || bundleText.indexOf(b.label + " ") === 0);
+  return found ? found.id : null;
+}
+
+/* ---------------- Dashboard: Notifications / Inbox ---------------- */
+function ResellerNotificationsTab({ reseller }) {
+  const [notifications, setNotifications] = useState([]);
+  const [requestReplies, setRequestReplies] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const notifs = await SB.get("notifications", { reseller_id: "eq." + reseller.id, order: "sent_at.desc" });
+        setNotifications(notifs || []);
+        const reqs = await SB.get("reseller_requests", {
+          reseller_id: "eq." + reseller.id,
+          admin_note: "not.is.null",
+          order: "created_at.desc",
+        });
+        setRequestReplies(reqs || []);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [reseller.id]);
+
+  async function markRead(id) {
+    setNotifications((n) => n.map((x) => (x.id === id ? { ...x, read: true } : x)));
+    try {
+      await SB.patch("notifications", { id: "eq." + id }, { read: true });
+    } catch (e) {}
+  }
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="flex-col gap-16">
+      <div className="card">
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Broadcasts from Admin</div>
+        {notifications.length === 0 ? (
+          <EmptyState text="No broadcasts yet." />
+        ) : (
+          <div className="flex-col gap-8">
+            {notifications.map((n) => (
+              <div
+                key={n.id}
+                className="surface-input"
+                style={{ borderColor: n.read ? G.border : G.accent, cursor: "pointer" }}
+                onClick={() => !n.read && markRead(n.id)}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: n.read ? 400 : 700 }}>{n.message}</span>
+                  {!n.read && <span style={{ color: G.accent, fontSize: 11 }}>NEW</span>}
+                </div>
+                <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>{timeAgo(n.sent_at)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="card">
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Replies to Your Requests</div>
+        {requestReplies.length === 0 ? (
+          <EmptyState text="No replies yet." />
+        ) : (
+          <div className="flex-col gap-8">
+            {requestReplies.map((r) => (
+              <div key={r.id} className="surface-input">
+                <div style={{ fontWeight: 700 }}>{r.title}</div>
+                <div className="muted" style={{ fontSize: 12.5, margin: "4px 0" }}>{r.admin_note}</div>
+                <StatusBadge status={r.status} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: Buy Data (sells to customer, deducts wallet) ---------------- */
+function DashBuyDataTab({ reseller, refreshReseller }) {
+  const toast = useToast();
+  const [network, setNetwork] = useState("MTN");
+  const [bundleId, setBundleId] = useState(MTN_BUNDLES[0].id);
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const bundles = BUNDLES_BY_NETWORK[network];
+  const bundle = findBundle(bundleId);
+
+  useEffect(() => {
+    const first = BUNDLES_BY_NETWORK[network].find((b) => !b.outOfStock) || BUNDLES_BY_NETWORK[network][0];
+    setBundleId(first.id);
+  }, [network]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!bundle) return;
+    if (bundle.outOfStock) {
+      toast(network + " is currently out of stock.", "error");
+      return;
+    }
+    if (!/^0\d{9}$/.test(customerPhone.trim())) {
+      toast("Enter a valid 10-digit phone number.", "error");
+      return;
+    }
+    if (Number(reseller.wallet_balance) < bundle.basePrice) {
+      toast("Insufficient wallet balance. Ask admin to top up.", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const orderRef = generateOrderRef();
+      await SB.post("transactions", {
+        reseller_id: reseller.id,
+        network,
+        bundle: bundle.label + " - " + formatGHS(bundle.basePrice),
+        amount: bundle.basePrice,
+        customer_phone: customerPhone.trim(),
+        customer_email: null,
+        status: "success",
+        admin_status: "Pending",
+        type: "data_purchase",
+        payment_ref: null,
+        order_ref: orderRef,
+      });
+      await SB.patch("resellers", { id: "eq." + reseller.id }, {
+        wallet_balance: Number(reseller.wallet_balance) - bundle.basePrice,
+        total_sales: Number(reseller.total_sales || 0) + bundle.basePrice,
+        total_customers: Number(reseller.total_customers || 0) + 1,
+      });
+      toast("Order " + orderRef + " placed!", "success");
+      setCustomerPhone("");
+      refreshReseller();
+    } catch (err) {
+      toast("Failed to place order.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 480 }}>
+      <div style={{ fontWeight: 700, marginBottom: 14 }}>Sell Data to a Customer</div>
+      <form onSubmit={handleSubmit} className="flex-col gap-12">
+        <div className="flex gap-8">
+          {Object.keys(BUNDLES_BY_NETWORK).map((n) => (
+            <button key={n} type="button" className="chip" style={network === n ? { borderColor: G.accent, color: G.accent } : null} onClick={() => setNetwork(n)}>
+              {n}
+            </button>
+          ))}
+        </div>
+        <select className="surface-input" value={bundleId} onChange={(e) => setBundleId(e.target.value)}>
+          {bundles.map((b) => (
+            <option key={b.id} value={b.id} disabled={b.outOfStock}>
+              {b.label} — {formatGHS(b.basePrice)} {b.outOfStock ? "(Out of stock)" : ""}
+            </option>
+          ))}
+        </select>
+        <input className="surface-input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Customer phone number" />
+        <div className="flex justify-between muted" style={{ fontSize: 13 }}>
+          <span>Wallet after purchase</span>
+          <span>{formatGHS(Number(reseller.wallet_balance) - (bundle ? bundle.basePrice : 0))}</span>
+        </div>
+        <Button variant="primary" className="btn-block" type="submit" disabled={submitting}>
+          {submitting ? <Spinner /> : "Sell " + (bundle ? bundle.label : "")}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: Social Media ---------------- */
+function DashSocialTab({ reseller, refreshReseller }) {
+  const toast = useToast();
+  const [serviceId, setServiceId] = useState(ALL_SOCIAL_SERVICES[0].id);
+  const [quantity, setQuantity] = useState(1000);
+  const [target, setTarget] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const service = findSocialService(serviceId);
+  const amount = service ? Math.round((service.priceGHS * (quantity / service.per)) * 100) / 100 : 0;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!target.trim()) {
+      toast("Enter the profile link or username.", "error");
+      return;
+    }
+    if (Number(reseller.wallet_balance) < amount) {
+      toast("Insufficient wallet balance.", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const orderRef = generateOrderRef();
+      await SB.post("transactions", {
+        reseller_id: reseller.id,
+        network: "Social",
+        bundle: service.name + " x " + quantity,
+        amount,
+        customer_phone: target.trim(),
+        status: "success",
+        admin_status: "Pending",
+        type: "social_order",
+        order_ref: orderRef,
+      });
+      await SB.patch("resellers", { id: "eq." + reseller.id }, {
+        wallet_balance: Number(reseller.wallet_balance) - amount,
+        total_sales: Number(reseller.total_sales || 0) + amount,
+        total_customers: Number(reseller.total_customers || 0) + 1,
+      });
+      toast("Order " + orderRef + " placed!", "success");
+      setTarget("");
+      refreshReseller();
+    } catch (err) {
+      toast("Failed to place order.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 480 }}>
+      <div style={{ fontWeight: 700, marginBottom: 14 }}>Order Social Media Services</div>
+      <form onSubmit={handleSubmit} className="flex-col gap-12">
+        <select className="surface-input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+          <optgroup label="Instagram">
+            {INSTAGRAM_SERVICES.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} — {formatGHS(s.priceGHS)}/{s.per}</option>
+            ))}
+          </optgroup>
+          <optgroup label="General / TikTok">
+            {GENERAL_SERVICES.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} — {formatGHS(s.priceGHS)}/{s.per}</option>
+            ))}
+          </optgroup>
+        </select>
+        <input type="number" className="surface-input" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+        <input className="surface-input" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Profile link or username" />
+        <div className="flex justify-between" style={{ fontSize: 13.5 }}>
+          <span className="muted">Total cost</span>
+          <span style={{ fontWeight: 700, color: G.accent }}>{formatGHS(amount)}</span>
+        </div>
+        <Button variant="primary" className="btn-block" type="submit" disabled={submitting}>
+          {submitting ? <Spinner /> : "Place Order"}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: Transactions (last 20, auto-refresh 30s) ---------------- */
+function DashTransactionsTab({ reseller }) {
+  const [txns, setTxns] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const rows = await SB.get("transactions", {
+        reseller_id: "eq." + reseller.id,
+        order: "created_at.desc",
+        limit: "20",
+      });
+      setTxns(rows || []);
+    } finally {
+      setLoading(false);
+    }
+  }, [reseller.id]);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  return (
+    <div className="card">
+      <div className="flex justify-between items-center" style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 700 }}>Transaction History</div>
+        <span className="muted" style={{ fontSize: 11.5 }}>Auto-refreshes every 30s</span>
+      </div>
+      {loading ? (
+        <Spinner />
+      ) : txns.length === 0 ? (
+        <EmptyState text="No transactions yet." />
+      ) : (
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr><th>Order ID</th><th>Network</th><th>Bundle</th><th>Customer</th><th>Amount</th><th>Status</th><th>Date</th></tr>
+            </thead>
+            <tbody>
+              {txns.map((t) => (
+                <tr key={t.id}>
+                  <td className="muted">{t.order_ref}</td>
+                  <td>{t.network}</td>
+                  <td>{t.bundle}</td>
+                  <td>{t.customer_phone}</td>
+                  <td>{formatGHS(t.amount)}</td>
+                  <td><StatusBadge status={t.admin_status} /></td>
+                  <td className="muted">{timeAgo(t.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: Earnings ---------------- */
+function DashEarningsTab({ reseller }) {
+  const [completed, setCompleted] = useState([]);
+  const [withdrawn, setWithdrawn] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const txns = await SB.get("transactions", { reseller_id: "eq." + reseller.id, admin_status: "eq.Completed" });
+        setCompleted(txns || []);
+        const withdrawals = await SB.get("withdrawal_requests", { reseller_id: "eq." + reseller.id, status: "neq.Rejected" });
+        const sum = (withdrawals || []).reduce((s, w) => s + Number(w.amount), 0);
+        setWithdrawn(sum);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [reseller.id]);
+
+  const byBundle = useMemo(() => {
+    const map = {};
+    completed.forEach((t) => {
+      let profit;
+      if (t.profit != null && t.profit !== "") {
+        profit = Number(t.profit);
+      } else {
+        const base = findBundle(matchBundleId(t.bundle));
+        const baseCost = base ? base.basePrice : 0;
+        profit = Number(t.amount) - baseCost;
+      }
+      const key = t.bundle;
+      if (!map[key]) map[key] = { label: key, count: 0, profit: 0 };
+      map[key].count += 1;
+      map[key].profit += profit;
+    });
+    return Object.values(map).sort((a, b) => b.profit - a.profit);
+  }, [completed]);
+
+  const totalProfit = byBundle.reduce((s, b) => s + b.profit, 0);
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="flex-col gap-16">
+      <div className="live-stats-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
+        <StatCard label="Total Profit" value={formatGHS(totalProfit)} color={G.green} />
+        <StatCard label="Withdrawn" value={formatGHS(withdrawn)} color={G.gold} />
+        <StatCard label="Available" value={formatGHS(Math.max(0, totalProfit - withdrawn))} color={G.accent} />
+      </div>
+      <div className="card">
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Profit by Bundle</div>
+        {byBundle.length === 0 ? (
+          <EmptyState text="No completed orders yet." />
+        ) : (
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>Bundle</th><th>Orders</th><th>Profit</th></tr></thead>
+              <tbody>
+                {byBundle.map((b) => (
+                  <tr key={b.label}>
+                    <td>{b.label}</td>
+                    <td>{b.count}</td>
+                    <td style={{ color: G.green, fontWeight: 700 }}>{formatGHS(b.profit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: Withdraw ---------------- */
+function DashWithdrawTab({ reseller }) {
+  const toast = useToast();
+  const [amount, setAmount] = useState("");
+  const [momoNumber, setMomoNumber] = useState("");
+  const [momoName, setMomoName] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    SB.get("withdrawal_requests", { reseller_id: "eq." + reseller.id, order: "created_at.desc" })
+      .then((rows) => setHistory(rows || []))
+      .finally(() => setLoading(false));
+  }, [reseller.id]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!amount || Number(amount) <= 0 || !momoNumber.trim() || !momoName.trim()) {
+      toast("Fill in amount, MoMo number and account name.", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const rows = await SB.post("withdrawal_requests", {
+        reseller_id: reseller.id,
+        store_name: reseller.store_name,
+        phone_number: reseller.phone_number,
+        amount: Number(amount),
+        momo_number: momoNumber.trim(),
+        momo_name: momoName.trim(),
+        note: note || null,
+        status: "Pending",
+      });
+      setHistory((h) => [rows[0], ...h]);
+      setAmount(""); setMomoNumber(""); setMomoName(""); setNote("");
+      toast("Withdrawal request submitted.", "success");
+    } catch (err) {
+      toast("Failed to submit request.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="flex-col gap-16">
+      <div className="card" style={{ maxWidth: 480 }}>
+        <div style={{ fontWeight: 700, marginBottom: 14 }}>Request a Withdrawal</div>
+        <form onSubmit={handleSubmit} className="flex-col gap-12">
+          <input type="number" className="surface-input" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount (GHS)" />
+          <input className="surface-input" value={momoNumber} onChange={(e) => setMomoNumber(e.target.value)} placeholder="MoMo number" />
+          <input className="surface-input" value={momoName} onChange={(e) => setMomoName(e.target.value)} placeholder="Account name" />
+          <textarea className="surface-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" rows={2} />
+          <Button variant="primary" className="btn-block" type="submit" disabled={submitting}>
+            {submitting ? <Spinner /> : "Submit Request"}
+          </Button>
+        </form>
+      </div>
+      <div className="card">
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Withdrawal History</div>
+        {loading ? <Spinner /> : history.length === 0 ? (
+          <EmptyState text="No withdrawal requests yet." />
+        ) : (
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>Amount</th><th>MoMo</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody>
+                {history.map((w) => (
+                  <tr key={w.id}>
+                    <td>{formatGHS(w.amount)}</td>
+                    <td>{w.momo_number}</td>
+                    <td><StatusBadge status={w.status === "Paid" ? "Completed" : w.status === "Rejected" ? "Failed" : "Pending"} /></td>
+                    <td className="muted">{timeAgo(w.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: My Prices ---------------- */
+function DashMyPricesTab({ reseller }) {
+  const toast = useToast();
+  const [prices, setPrices] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(null);
+
+  useEffect(() => {
+    SB.get("reseller_prices", { reseller_id: "eq." + reseller.id })
+      .then((rows) => {
+        const map = {};
+        (rows || []).forEach((p) => (map[p.bundle_id] = p.price));
+        setPrices(map);
+      })
+      .finally(() => setLoading(false));
+  }, [reseller.id]);
+
+  async function savePrice(bundle) {
+    const value = prices[bundle.id];
+    if (value == null || value === "") return;
+    setSaving(bundle.id);
+    try {
+      await SB.upsert(
+        "reseller_prices",
+        { reseller_id: reseller.id, bundle_id: bundle.id, price: Number(value) },
+        "reseller_id,bundle_id"
+      );
+      toast(bundle.label + " price saved.", "success");
+    } catch (err) {
+      toast("Failed to save price.", "error");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="card">
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>Set Your Selling Prices</div>
+      <p className="muted" style={{ fontSize: 12.5, marginBottom: 14 }}>
+        Leave blank to use the base price. Your profit = your price − base price.
+      </p>
+      <div className="tbl-wrap">
+        <table className="tbl">
+          <thead><tr><th>Bundle</th><th>Base Price</th><th>Your Price</th><th></th></tr></thead>
+          <tbody>
+            {MTN_BUNDLES.map((b) => (
+              <tr key={b.id}>
+                <td>{b.label}</td>
+                <td className="muted">{formatGHS(b.basePrice)}</td>
+                <td>
+                  <input
+                    type="number"
+                    className="surface-input"
+                    style={{ maxWidth: 110 }}
+                    value={prices[b.id] ?? ""}
+                    placeholder={b.basePrice.toFixed(2)}
+                    onChange={(e) => setPrices((p) => ({ ...p, [b.id]: e.target.value }))}
+                  />
+                </td>
+                <td>
+                  <Button variant="ghost" className="btn-sm" disabled={saving === b.id} onClick={() => savePrice(b)}>
+                    {saving === b.id ? <Spinner /> : "Save"}
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: Requests (product requests / suggestions) ---------------- */
+function ResellerRequestsTab({ reseller }) {
+  const toast = useToast();
+  const [type, setType] = useState("request");
+  const [title, setTitle] = useState("");
+  const [details, setDetails] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    SB.get("reseller_requests", { reseller_id: "eq." + reseller.id, order: "created_at.desc" })
+      .then((rows) => setItems(rows || []))
+      .finally(() => setLoading(false));
+  }, [reseller.id]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!title.trim() || !details.trim()) {
+      toast("Add a title and description.", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const rows = await SB.post("reseller_requests", {
+        reseller_id: reseller.id,
+        store_name: reseller.store_name,
+        phone_number: reseller.phone_number,
+        type,
+        title: title.trim(),
+        details: details.trim(),
+        status: "Pending",
+      });
+      setItems((i) => [rows[0], ...i]);
+      setTitle(""); setDetails("");
+      toast("Submitted to admin.", "success");
+    } catch (err) {
+      toast("Failed to submit.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="flex-col gap-16">
+      <div className="card" style={{ maxWidth: 480 }}>
+        <div style={{ fontWeight: 700, marginBottom: 14 }}>Submit a Request or Suggestion</div>
+        <form onSubmit={handleSubmit} className="flex-col gap-12">
+          <div className="flex gap-8">
+            {["request", "suggestion"].map((t) => (
+              <button key={t} type="button" className="chip" style={type === t ? { borderColor: G.accent, color: G.accent } : null} onClick={() => setType(t)}>
+                {t === "request" ? "Product Request" : "Suggestion"}
+              </button>
+            ))}
+          </div>
+          <input className="surface-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short title" />
+          <textarea className="surface-input" value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Describe your request..." rows={3} />
+          <Button variant="primary" className="btn-block" type="submit" disabled={submitting}>
+            {submitting ? <Spinner /> : "Submit"}
+          </Button>
+        </form>
+      </div>
+      <div className="card">
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Your Requests</div>
+        {loading ? <Spinner /> : items.length === 0 ? (
+          <EmptyState text="You haven't submitted anything yet." />
+        ) : (
+          <div className="flex-col gap-8">
+            {items.map((r) => (
+              <div key={r.id} className="surface-input">
+                <div className="flex justify-between">
+                  <span style={{ fontWeight: 700 }}>{r.title}</span>
+                  <StatusBadge status={r.status === "Implemented" || r.status === "Approved" ? "Completed" : r.status === "Rejected" ? "Failed" : "Pending"} />
+                </div>
+                <div className="muted" style={{ fontSize: 12.5, margin: "4px 0" }}>{r.details}</div>
+                {r.admin_note && (
+                  <div style={{ fontSize: 12.5, color: G.accent, marginTop: 4 }}>Admin: {r.admin_note}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: My Store ---------------- */
+function DashMyStoreTab({ reseller }) {
+  const toast = useToast();
+  const storeLink = window.location.origin + "/store/" + reseller.store_slug;
+  const waShareText = encodeURIComponent("Buy cheap data bundles at my store: " + storeLink);
+
+  function copyLink() {
+    navigator.clipboard.writeText(storeLink);
+    toast("Store link copied!", "success");
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 480 }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>My Store</div>
+      <p className="muted" style={{ fontSize: 12.5, marginBottom: 16 }}>
+        Share this link with customers. They buy directly, you earn the profit on every sale.
+      </p>
+      <div className="surface-input" style={{ color: G.accent, overflowX: "auto", whiteSpace: "nowrap", marginBottom: 14 }}>
+        {storeLink}
+      </div>
+      <div className="flex-col gap-8">
+        <Button variant="primary" className="btn-block" onClick={copyLink}>
+          Copy Store Link
+        </Button>
+        <a className="btn btn-green btn-block" href={"https://wa.me/?text=" + waShareText} target="_blank" rel="noreferrer">
+          Share on WhatsApp
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard: My Orders ---------------- */
+function DashMyOrdersTab({ reseller }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("All");
+
+  useEffect(() => {
+    SB.get("transactions", { reseller_id: "eq." + reseller.id, order: "created_at.desc", limit: "100" })
+      .then((rows) => setOrders(rows || []))
+      .finally(() => setLoading(false));
+  }, [reseller.id]);
+
+  const filtered = filter === "All" ? orders : orders.filter((o) => o.admin_status === filter);
+
+  return (
+    <div className="card">
+      <div className="flex justify-between items-center flex-wrap gap-8" style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 700 }}>Orders From Your Store</div>
+        <select className="surface-input" style={{ width: "auto" }} value={filter} onChange={(e) => setFilter(e.target.value)}>
+          {["All", "Pending", "Processing", "Completed", "Failed", "Refunded"].map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+      {loading ? <Spinner /> : filtered.length === 0 ? (
+        <EmptyState text="No orders match this filter." />
+      ) : (
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead><tr><th>Order ID</th><th>Network</th><th>Customer</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+              {filtered.map((o) => (
+                <tr key={o.id}>
+                  <td className="muted">{o.order_ref}</td>
+                  <td>{o.network}</td>
+                  <td>{o.customer_phone}</td>
+                  <td>{formatGHS(o.amount)}</td>
+                  <td><StatusBadge status={o.admin_status} /></td>
+                  <td className="muted">{timeAgo(o.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   AdminPanel — admin dashboard shell
+   ============================================================ */
+const ADMIN_TABS = [
+  { id: "dashboard", label: "Dashboard", icon: "📊" },
+  { id: "resellers", label: "Resellers", icon: "👥" },
+  { id: "orders", label: "Orders", icon: "📦" },
+  { id: "withdrawals", label: "Withdrawals", icon: "🏦" },
+  { id: "pricing", label: "Pricing", icon: "🏷️" },
+  { id: "requests", label: "Requests", icon: "💬" },
+  { id: "tools", label: "Tools", icon: "🛠️" },
+];
+const ADMIN_MOBILE_TABS = ["dashboard", "orders", "resellers", "withdrawals", "tools"];
+
+function AdminPanel({ onLogout }) {
+  const [tab, setTab] = useState("dashboard");
+
+  return (
+    <div className="app-shell">
+      <div className="sidebar-desktop">
+        <div className="syne" style={{ fontWeight: 800, fontSize: 17, padding: "6px 12px 18px" }}>
+          Admin <span style={{ color: G.accent2 }}>Panel</span>
+        </div>
+        {ADMIN_TABS.map((t) => (
+          <div key={t.id} className={classNames("sidebar-link", tab === t.id && "active")} onClick={() => setTab(t.id)}>
+            <span>{t.icon}</span>
+            <span>{t.label}</span>
+          </div>
+        ))}
+        <div className="divider" />
+        <div className="sidebar-link" onClick={onLogout} style={{ color: G.red }}>
+          <span>🚪</span><span>Log Out</span>
+        </div>
+      </div>
+
+      <div className="main-content">
+        <div className="syne" style={{ fontWeight: 800, fontSize: 19, marginBottom: 20 }}>
+          DataResell Pro — Admin
+        </div>
+        {tab === "dashboard" && <AdminDashboardTab />}
+        {tab === "resellers" && <AdminResellersTab />}
+        {tab === "orders" && <AdminOrdersTab />}
+        {tab === "withdrawals" && <AdminWithdrawalsTab />}
+        {tab === "pricing" && <AdminPricingTab />}
+        {tab === "requests" && <AdminRequestsTab />}
+        {tab === "tools" && <AdminToolsTab />}
+      </div>
+
+      <div className="mobile-nav">
+        {ADMIN_MOBILE_TABS.map((id) => {
+          const t = ADMIN_TABS.find((x) => x.id === id);
+          return (
+            <div key={id} className={classNames("mobile-nav-item", tab === id && "active")} onClick={() => setTab(id)}>
+              <span style={{ fontSize: 17 }}>{t.icon}</span>
+              <span>{t.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Admin: Dashboard ---------------- */
+function AdminDashboardTab() {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [txns, resellers, withdrawals] = await Promise.all([
+          SB.get("transactions", {}),
+          SB.get("resellers", {}),
+          SB.get("withdrawal_requests", { status: "eq.Pending" }),
+        ]);
+        const totalRevenue = (txns || []).reduce((s, t) => s + Number(t.amount), 0);
+        const pendingOrders = (txns || []).filter((t) => t.admin_status === "Pending").length;
+        const completed = (txns || []).filter((t) => t.admin_status === "Completed");
+        const platformProfit = completed.reduce((s, t) => {
+          if (t.profit != null && t.profit !== "") return s + Number(t.profit);
+          const base = findBundle(matchBundleId(t.bundle));
+          return s + (Number(t.amount) - (base ? base.basePrice : 0));
+        }, 0);
+        setStats({
+          totalRevenue,
+          totalOrders: (txns || []).length,
+          activeResellers: (resellers || []).length,
+          pendingOrders,
+          platformProfit,
+          pendingWithdrawals: (withdrawals || []).length,
+        });
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading || !stats) return <Spinner size="lg" />;
+
+  return (
+    <div className="live-stats-grid">
+      <StatCard label="Total Revenue" value={formatGHS(stats.totalRevenue)} color={G.accent} />
+      <StatCard label="Total Orders" value={stats.totalOrders} color={G.text} />
+      <StatCard label="Active Resellers" value={stats.activeResellers} color={G.accent2} />
+      <StatCard label="Pending Orders" value={stats.pendingOrders} color={G.gold} />
+      <StatCard label="Platform Profit" value={formatGHS(stats.platformProfit)} color={G.green} />
+      <StatCard label="Pending Withdrawals" value={stats.pendingWithdrawals} color={G.red} />
+    </div>
+  );
+}
+
+/* ---------------- Admin: Resellers ---------------- */
+function AdminResellersTab() {
+  const toast = useToast();
+  const [resellers, setResellers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [topupTarget, setTopupTarget] = useState(null);
+
+  function load() {
+    SB.get("resellers", { order: "created_at.desc" }).then((rows) => setResellers(rows || [])).finally(() => setLoading(false));
+  }
+  useEffect(load, []);
+
+  async function handleDelete(r) {
+    if (!window.confirm("Delete " + r.store_name + "? This cannot be undone.")) return;
+    try {
+      await SB.delete("resellers", { id: "eq." + r.id });
+      setResellers((rs) => rs.filter((x) => x.id !== r.id));
+      toast("Reseller deleted.", "success");
+    } catch (err) {
+      toast("Failed to delete reseller.", "error");
+    }
+  }
+
+  const filtered = resellers.filter(
+    (r) =>
+      r.store_name.toLowerCase().includes(search.toLowerCase()) ||
+      r.phone_number.includes(search)
+  );
+
+  return (
+    <div className="card">
+      <div className="flex justify-between items-center flex-wrap gap-8" style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 700 }}>Resellers ({resellers.length})</div>
+        <input className="surface-input" style={{ width: 220 }} placeholder="Search store or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
+      {loading ? <Spinner /> : filtered.length === 0 ? (
+        <EmptyState text="No resellers found." />
+      ) : (
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead><tr><th>Store</th><th>Phone</th><th>Wallet</th><th>Sales</th><th>Customers</th><th>Store Link</th><th></th></tr></thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.store_name}</td>
+                  <td className="muted">{r.phone_number}</td>
+                  <td style={{ color: G.green, fontWeight: 700 }}>{formatGHS(r.wallet_balance)}</td>
+                  <td>{formatGHS(r.total_sales)}</td>
+                  <td>{r.total_customers || 0}</td>
+                  <td>
+                    <a href={"/store/" + r.store_slug} target="_blank" rel="noreferrer" style={{ color: G.accent }}>
+                      /store/{r.store_slug}
+                    </a>
+                  </td>
+                  <td className="flex gap-8">
+                    <Button variant="ghost" className="btn-sm" onClick={() => setTopupTarget(r)}>Fund</Button>
+                    <Button variant="danger" className="btn-sm" onClick={() => handleDelete(r)}>Delete</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {topupTarget && (
+        <WalletTopupModal
+          reseller={topupTarget}
+          onClose={() => setTopupTarget(null)}
+          onDone={(updated) => {
+            setResellers((rs) => rs.map((r) => (r.id === updated.id ? updated : r)));
+            setTopupTarget(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Admin: Wallet Topup Modal ---------------- */
+function WalletTopupModal({ reseller, onClose, onDone }) {
+  const toast = useToast();
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) {
+      toast("Enter a valid amount.", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      const newBalance = (reseller.wallet_balance || 0) + amt;
+      const updated = await SB.patch("resellers", { id: "eq." + reseller.id }, { wallet_balance: newBalance });
+      await SB.post("transactions", {
+        reseller_id: reseller.id,
+        network: "N/A",
+        bundle: "Wallet Top-up" + (note ? " - " + note : ""),
+        amount: amt,
+        customer_phone: reseller.phone_number,
+        customer_email: null,
+        status: "success",
+        admin_status: "Completed",
+        type: "wallet_topup",
+        payment_ref: "ADMIN-" + Date.now(),
+        order_ref: generateOrderRef(),
+      });
+      await SB.post("notifications", {
+        reseller_id: reseller.id,
+        message: "Your wallet was credited with " + formatGHS(amt) + " by the admin.",
+        read: false,
+        sent_at: new Date().toISOString(),
+      });
+      toast("Wallet topped up successfully.", "success");
+      onDone({ ...reseller, wallet_balance: newBalance });
+    } catch (err) {
+      toast("Failed to top up wallet.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} title={"Fund Wallet — " + reseller.store_name}>
+      <form onSubmit={handleSubmit} className="flex-col gap-12">
+        <div>
+          <div className="muted" style={{ marginBottom: 4 }}>Current Balance: {formatGHS(reseller.wallet_balance)}</div>
+        </div>
+        <div>
+          <label className="field-label">Amount (GHS)</label>
+          <input className="surface-input" type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+        </div>
+        <div>
+          <label className="field-label">Note (optional)</label>
+          <input className="surface-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for top-up" />
+        </div>
+        <Button type="submit" variant="primary" disabled={busy}>{busy ? "Processing..." : "Credit Wallet"}</Button>
+      </form>
+    </Modal>
+  );
+}
+
+/* ---------------- Admin: Orders ---------------- */
+function AdminOrdersTab() {
+  const toast = useToast();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [showBulk, setShowBulk] = useState(false);
+
+  function load() {
+    SB.get("transactions", { order: "created_at.desc", limit: "500" }).then((rows) => setOrders(rows || [])).finally(() => setLoading(false));
+  }
+  useEffect(load, []);
+
+  async function updateStatus(order, newStatus) {
+    try {
+      await SB.patch("transactions", { id: "eq." + order.id }, { admin_status: newStatus });
+      setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, admin_status: newStatus } : o)));
+      toast("Order updated to " + newStatus + ".", "success");
+    } catch (err) {
+      toast("Failed to update order.", "error");
+    }
+  }
+
+  function exportCSV() {
+    const headers = ["order_ref", "network", "bundle", "amount", "profit", "customer_phone", "customer_email", "status", "admin_status", "type", "created_at"];
+    const rows = filtered.map((o) => headers.map((h) => JSON.stringify(o[h] != null ? o[h] : "")).join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "orders_export_" + Date.now() + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  const filtered = orders.filter((o) => {
+    const matchesStatus = statusFilter === "All" || o.admin_status === statusFilter;
+    const s = search.toLowerCase();
+    const matchesSearch =
+      !s ||
+      (o.order_ref || "").toLowerCase().includes(s) ||
+      (o.customer_phone || "").toLowerCase().includes(s) ||
+      (o.bundle || "").toLowerCase().includes(s);
+    return matchesStatus && matchesSearch;
+  });
+
+  return (
+    <div className="card">
+      <div className="flex justify-between items-center flex-wrap gap-8" style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 700 }}>Orders ({orders.length})</div>
+        <div className="
